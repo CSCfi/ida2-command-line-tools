@@ -1,0 +1,16 @@
+._.DS_Store
+.DS_Store
+.idea
+.eclipse
+.gitignore
+__pycache__
+*~
+*.log
+*.err
+*.pyc
+*.dump
+project.sublime-project
+!/.gitignore
+TODO
+/snapshots
+/tmp
