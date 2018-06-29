@@ -60,7 +60,7 @@ Usage: ida [-h]
        by the -name option of the POSIX find command.
 
        Note that files are not officially stored persistently in the IDA service until they are frozen, which can
-       only be done using the web UI of the service (https://openscience.fi/ida-user-guide#project-data-storage).
+       only be done using the web UI of the service (https://www.fairdata.fi/en/ida/user-guide/#project-data-storage).
 "
 
 IDA_HOST="https://ida.fairdata.fi"

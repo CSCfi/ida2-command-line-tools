@@ -24,7 +24,7 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
 # IDA Command Line Tools
 
 This repository provides a [bash](https://www.gnu.org/software/bash/) script `ida` for interacting with
-v2 of the [IDA service](http://openscience.fi/ida) from the command line.
+v2 of the [IDA service](https://www.fairdata.fi/en/ida/) from the command line.
 
     Usage: ida [-h]
            ida upload   [-v] [-c config] [-i ignore] [-t host] [-p project] target_pathname local_pathname
@@ -134,6 +134,6 @@ POSIX `find` command.
 ## Special Notes
 
 Note that files are not officially stored persistently in the IDA service
-until they are [frozen](https://openscience.fi/ida-user-guide#project-data-storage),
+until they are [frozen](https://www.fairdata.fi/en/ida/user-guide/#project-data-storage),
 which can only be done using the web UI of the service.
 
