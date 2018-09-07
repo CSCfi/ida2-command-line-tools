@@ -708,9 +708,9 @@ fi
 #--------------------------------------------------------------------------------
 # Check that the provided credentials are valid by testing access to project folder
 
-NOT_FOUND=`curl $IDA_CURL_OPS $IDA_NETRC -I -K- "${IDA_HOST}${IDA_API}/${IDA_PROJECT_FOLDER}" 2>&1 <<< "$IDA_STDIN_CREDENTIALS" | grep "HTTP/1.1 404 Not Found"`
+CREDENTIALS_OK=`curl $IDA_CURL_OPS $IDA_NETRC -I -K- "${IDA_HOST}${IDA_API}/${IDA_PROJECT_FOLDER}" 2>&1 <<< "$IDA_STDIN_CREDENTIALS" | grep "HTTP/1.1 200 OK"`
 
-if [ "$NOT_FOUND" ]; then
+if [ "$CREDENTIALS_OK" = "" ]; then
     echo "Error: Authentication failed."
     exit 1
 fi
