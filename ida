@@ -94,9 +94,8 @@ function reportParameters {
     # for testing...
     echo ""
     echo "Project:         $IDA_PROJECT"
-    echo "Username:        $IDA_USERNAME"
-    echo "Password:        $IDA_PASSWORD"
-    echo "NetRC:           $IDA_NETRC"
+    echo "Username:        $IDA_DEBUG_USERNAME"
+    echo "Password:        $IDA_DEBUG_PASSWORD"
     echo "Configuration:   $IDA_CONFIG_FILE"
     echo "Host:            $IDA_HOST"
     echo "Action:          $IDA_ACTION"
@@ -159,7 +158,7 @@ function verifyTargetExists {
     ENCODED_PATHNAME=$(urlEncodePathname "${1}")
 
     if [ "$IDA_DEBUG" == "true" ]; then
-        echo "curl $IDA_CURL_OPS $IDA_NETRC -I -K- \"${IDA_HOST}${IDA_API}/${IDA_PROJECT_FOLDER}/${ENCODED_PATHNAME}\" 2>&1 <<< \"$IDA_STDIN_CREDENTIALS\" | grep \"HTTP/1.1 404 Not Found\""
+        echo "curl $IDA_CURL_OPS $IDA_NETRC -I -K- \"${IDA_HOST}${IDA_API}/${IDA_PROJECT_FOLDER}/${ENCODED_PATHNAME}\" 2>&1 <<< \"$IDA_DEBUG_CREDENTIALS\" | grep \"HTTP/1.1 404 Not Found\""
     fi
 
     NOT_FOUND=`curl $IDA_CURL_OPS $IDA_NETRC -I -K- "${IDA_HOST}${IDA_API}/${IDA_PROJECT_FOLDER}/${ENCODED_PATHNAME}" 2>&1 <<< "$IDA_STDIN_CREDENTIALS" | grep "HTTP/1.1 404 Not Found"`
@@ -179,7 +178,7 @@ function verifyTargetIsFile {
     ENCODED_PATHNAME=$(urlEncodePathname "${1}")
 
     if [ "$IDA_DEBUG" == "true" ]; then
-        echo "curl $IDA_CURL_OPS $IDA_NETRC -X PROPFIND -K- \"${IDA_HOST}${IDA_API}/${IDA_PROJECT_FOLDER}/${ENCODED_PATHNAME}\" 2>&1 <<< \"$IDA_STDIN_CREDENTIALS\" | grep \"<d:resourcetype><d:collection/></d:resourcetype>\""
+        echo "curl $IDA_CURL_OPS $IDA_NETRC -X PROPFIND -K- \"${IDA_HOST}${IDA_API}/${IDA_PROJECT_FOLDER}/${ENCODED_PATHNAME}\" 2>&1 <<< \"$IDA_DEBUG_CREDENTIALS\" | grep \"<d:resourcetype><d:collection/></d:resourcetype>\""
     fi
 
     NOT_FILE=`curl $IDA_CURL_OPS $IDA_NETRC -X PROPFIND -K- "${IDA_HOST}${IDA_API}/${IDA_PROJECT_FOLDER}/${ENCODED_PATHNAME}" 2>&1 <<< "$IDA_STDIN_CREDENTIALS" |  grep "<d:resourcetype><d:collection/></d:resourcetype>"`
@@ -221,7 +220,7 @@ function ensureAncestorFoldersExist {
         ENCODED_PATHNAME=$(urlEncodePathname "${ANCESTOR_FOLDER_PATHNAME}")
 
         if [ "$IDA_DEBUG" == "true" ]; then
-            echo "curl $IDA_CURL_OPS $IDA_NETRC -X MKCOL -K- \"${IDA_HOST}${IDA_API}/${IDA_PROJECT_FOLDER}/${ENCODED_PATHNAME}\" >/dev/null <<< \"$IDA_STDIN_CREDENTIALS\""
+            echo "curl $IDA_CURL_OPS $IDA_NETRC -X MKCOL -K- \"${IDA_HOST}${IDA_API}/${IDA_PROJECT_FOLDER}/${ENCODED_PATHNAME}\" >/dev/null <<< \"$IDA_DEBUG_CREDENTIALS\""
         fi
 
         if [ "$IDA_EXECUTE_ACTION" == "true" ]; then
@@ -262,7 +261,7 @@ function execute-ida-upload {
         ENCODED_PATHNAME=$(urlEncodePathname "${TARGET_PATHNAME}")
 
         if [ "$IDA_DEBUG" == "true" ]; then
-            echo "curl $IDA_CURL_OPS $IDA_NETRC -X MKCOL -K- \"${IDA_HOST}${IDA_API}/${IDA_PROJECT_FOLDER}/${ENCODED_PATHNAME}\" >/dev/null <<< \"$IDA_STDIN_CREDENTIALS\""
+            echo "curl $IDA_CURL_OPS $IDA_NETRC -X MKCOL -K- \"${IDA_HOST}${IDA_API}/${IDA_PROJECT_FOLDER}/${ENCODED_PATHNAME}\" >/dev/null <<< \"$IDA_DEBUG_CREDENTIALS\""
         fi
 
         if [ "$IDA_EXECUTE_ACTION" == "true" ]; then
@@ -291,7 +290,7 @@ function execute-ida-upload {
                     ENCODED_PATHNAME=$(urlEncodePathname "${TARGET_PATHNAME}/${TARGET_DIRNAME}")
     
                     if [ "$IDA_DEBUG" == "true" ]; then
-                        echo "curl $IDA_CURL_OPS $IDA_NETRC -X MKCOL -K- \"${IDA_HOST}${IDA_API}/${IDA_PROJECT_FOLDER}/${ENCODED_PATHNAME}\" >/dev/null <<< \"$IDA_STDIN_CREDENTIALS\""
+                        echo "curl $IDA_CURL_OPS $IDA_NETRC -X MKCOL -K- \"${IDA_HOST}${IDA_API}/${IDA_PROJECT_FOLDER}/${ENCODED_PATHNAME}\" >/dev/null <<< \"$IDA_DEBUG_CREDENTIALS\""
                     fi
     
                     if [ "$IDA_EXECUTE_ACTION" == "true" ]; then
@@ -321,7 +320,7 @@ function execute-ida-upload {
                 ENCODED_PATHNAME=$(urlEncodePathname "${TARGET_PATHNAME}/${TARGET_FILENAME}")
 
                 if [ "$IDA_DEBUG" == "true" ]; then
-                    echo "curl $IDA_CURL_OPS $IDA_NETRC -X PUT -K- -T \"$filename\" \"${IDA_HOST}${IDA_API}/${IDA_PROJECT_FOLDER}/${ENCODED_PATHNAME}\" <<< \"$IDA_STDIN_CREDENTIALS\""
+                    echo "curl $IDA_CURL_OPS $IDA_NETRC -X PUT -K- -T \"$filename\" \"${IDA_HOST}${IDA_API}/${IDA_PROJECT_FOLDER}/${ENCODED_PATHNAME}\" <<< \"$IDA_DEBUG_CREDENTIALS\""
                 fi
 
                 if [ "$IDA_EXECUTE_ACTION" == "true" ]; then
@@ -348,7 +347,7 @@ function execute-ida-upload {
         ENCODED_PATHNAME=$(urlEncodePathname "${TARGET_PATHNAME}")
 
         if [ "$IDA_DEBUG" == "true" ]; then
-            echo "curl $IDA_CURL_OPS $IDA_NETRC -X PUT -K- -T \"$LOCAL_PATHNAME\" \"${IDA_HOST}${IDA_API}/${IDA_PROJECT_FOLDER}/${ENCODED_PATHNAME}\" <<< \"$IDA_STDIN_CREDENTIALS\""
+            echo "curl $IDA_CURL_OPS $IDA_NETRC -X PUT -K- -T \"$LOCAL_PATHNAME\" \"${IDA_HOST}${IDA_API}/${IDA_PROJECT_FOLDER}/${ENCODED_PATHNAME}\" <<< \"$IDA_DEBUG_CREDENTIALS\""
         fi
 
         if [ "$IDA_EXECUTE_ACTION" == "true" ]; then
@@ -385,7 +384,7 @@ function execute-ida-move {
     NEW_ENCODED_PATHNAME=$(urlEncodePathname "${NEW_TARGET_PATHNAME}")
 
     if [ "$IDA_DEBUG" == "true" ]; then
-        echo "curl $IDA_CURL_OPS $IDA_NETRC -X MOVE -K- -H \"Destination:${IDA_HOST}${IDA_API}/${IDA_PROJECT_FOLDER}/${ENCODED_PATHNAME}\" \"${IDA_HOST}${IDA_API}/${IDA_PROJECT_FOLDER}/${TARGET_PATHNAME}\" 2>&1 <<< \"$IDA_STDIN_CREDENTIALS\""
+        echo "curl $IDA_CURL_OPS $IDA_NETRC -X MOVE -K- -H \"Destination:${IDA_HOST}${IDA_API}/${IDA_PROJECT_FOLDER}/${ENCODED_PATHNAME}\" \"${IDA_HOST}${IDA_API}/${IDA_PROJECT_FOLDER}/${TARGET_PATHNAME}\" 2>&1 <<< \"$IDA_DEBUG_CREDENTIALS\""
     fi
 
     OUT=`curl $IDA_CURL_OPS $IDA_NETRC -X MOVE -K- -H "Destination:${IDA_HOST}${IDA_API}/${IDA_PROJECT_FOLDER}/${NEW_ENCODED_PATHNAME}" "${IDA_HOST}${IDA_API}/${IDA_PROJECT_FOLDER}/${TARGET_PATHNAME}" 2>&1 <<< "$IDA_STDIN_CREDENTIALS"`
@@ -412,7 +411,7 @@ function execute-ida-delete {
     ENCODED_PATHNAME=$(urlEncodePathname "${TARGET_PATHNAME}")
 
     if [ "$IDA_DEBUG" == "true" ]; then
-        echo "curl $IDA_CURL_OPS $IDA_NETRC -X DELETE -K- \"${IDA_HOST}${IDA_API}/${IDA_PROJECT_FOLDER}/${ENCODED_PATHNAME}\" 2>&1 <<< \"$IDA_STDIN_CREDENTIALS\""
+        echo "curl $IDA_CURL_OPS $IDA_NETRC -X DELETE -K- \"${IDA_HOST}${IDA_API}/${IDA_PROJECT_FOLDER}/${ENCODED_PATHNAME}\" 2>&1 <<< \"$IDA_DEBUG_CREDENTIALS\""
     fi
 
     OUT=`curl $IDA_CURL_OPS $IDA_NETRC -X DELETE -K- "${IDA_HOST}${IDA_API}/${IDA_PROJECT_FOLDER}/${ENCODED_PATHNAME}" 2>&1 <<< "$IDA_STDIN_CREDENTIALS"`
@@ -447,7 +446,7 @@ function execute-ida-download {
     fi
 
     if [ "$IDA_DEBUG" == "true" ]; then
-        echo "curl $IDA_CURL_OPS $IDA_NETRC -K- -o \"$LOCAL_PATHNAME\" \"${IDA_HOST}${IDA_API}/${IDA_PROJECT_FOLDER}/${ENCODED_PATHNAME}\" <<< \"$IDA_STDIN_CREDENTIALS\""
+        echo "curl $IDA_CURL_OPS $IDA_NETRC -K- -o \"$LOCAL_PATHNAME\" \"${IDA_HOST}${IDA_API}/${IDA_PROJECT_FOLDER}/${ENCODED_PATHNAME}\" <<< \"$IDA_DEBUG_CREDENTIALS\""
     fi
 
     if [ "$IDA_EXECUTE_ACTION" == "true" ]; then
@@ -690,8 +689,13 @@ fi
 if [ "$IDA_NETRC" ]; then
     IDA_USERNAME=""
     IDA_PASSWORD=""
+    IDA_DEBUG_USERNAME="(netrc)";
+    IDA_DEBUG_PASSWORD="(netrc)";
 else
+    IDA_DEBUG_USERNAME="${IDA_USERNAME}";
+    IDA_DEBUG_PASSWORD="(stdin)";
     IDA_STDIN_CREDENTIALS="-u ${IDA_USERNAME}:${IDA_PASSWORD}"
+    IDA_DEBUG_CREDENTIALS="-u ${IDA_USERNAME}:${IDA_DEBUG_PASSWORD}"
 fi
 
 #--------------------------------------------------------------------------------
