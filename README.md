@@ -133,6 +133,11 @@ POSIX `find` command.
 
 ## Special Notes
 
+Files named `.htaccess` and files with a suffix of either `.part` or `.filepart` may not be uploaded.
+The filenames will need to be changed in some manner, such as zipping the file or adding some other
+suffix or name change. These restrictions are due to security and other internal management contraints
+of the underlying Nextcloud platform employed by the IDA service.
+
 Note that files are not officially stored persistently in the IDA service
 until they are [frozen](https://www.fairdata.fi/en/ida/user-guide/#project-data-storage),
 which can only be done using the web UI of the service.
