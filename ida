@@ -68,7 +68,7 @@ IDA_API="/remote.php/webdav"
 IDA_STAGING_SUFFIX="%2b"
 IDA_CONFIG_FILE="$HOME/.ida-config"
 IDA_IGNORE_FILE="$HOME/.ida-ignore"
-IDA_CURL_OPS="--raw -s -L"
+IDA_CURL_OPS="--raw -s -S -k -L"
 IDA_EXECUTE_ACTION="true"
 IDA_NETRC=""
 
@@ -329,7 +329,7 @@ function execute-ida-upload {
 
                     OUT=`curl $IDA_CURL_OPS $IDA_NETRC -X PUT -K- -T "$filename" "${IDA_HOST}${IDA_API}/${IDA_PROJECT_FOLDER}/${ENCODED_PATHNAME}" 2>&1 <<< "$IDA_STDIN_CREDENTIALS"`
 
-                    if [ "$OUT" ]; then
+                    if [ "$OUT" != "" ]; then
                         echo "Error: curl request failed with the following output:"
                         echo "$OUT"
                         exit 1
@@ -355,7 +355,7 @@ function execute-ida-upload {
             # Catch output of curl execution and report fatal error if curl fails...
 
             OUT=`curl $IDA_CURL_OPS $IDA_NETRC -X PUT -K- -T "$LOCAL_PATHNAME" "${IDA_HOST}${IDA_API}/${IDA_PROJECT_FOLDER}/${ENCODED_PATHNAME}" 2>&1 <<< "$IDA_STDIN_CREDENTIALS"`
-            if [ "$OUT" ]; then
+            if [ "$OUT" != "" ]; then
                 echo "Error: curl request failed with the following output:"
                 echo "$OUT"
                 exit 1
@@ -389,7 +389,7 @@ function execute-ida-move {
 
     OUT=`curl $IDA_CURL_OPS $IDA_NETRC -X MOVE -K- -H "Destination:${IDA_HOST}${IDA_API}/${IDA_PROJECT_FOLDER}/${NEW_ENCODED_PATHNAME}" "${IDA_HOST}${IDA_API}/${IDA_PROJECT_FOLDER}/${TARGET_PATHNAME}" 2>&1 <<< "$IDA_STDIN_CREDENTIALS"`
 
-    if [ "$OUT" ]; then
+    if [ "$OUT" != "" ]; then
         echo "Error: curl request failed with the following output:"
         echo "$OUT"
         exit 1
@@ -416,7 +416,7 @@ function execute-ida-delete {
 
     OUT=`curl $IDA_CURL_OPS $IDA_NETRC -X DELETE -K- "${IDA_HOST}${IDA_API}/${IDA_PROJECT_FOLDER}/${ENCODED_PATHNAME}" 2>&1 <<< "$IDA_STDIN_CREDENTIALS"`
 
-    if [ "$OUT" ]; then
+    if [ "$OUT" != "" ]; then
         echo "Error: curl request failed with the following output:"
         echo "$OUT"
         exit 1
@@ -454,7 +454,7 @@ function execute-ida-download {
         # Catch output of curl execution and report fatal error if curl fails...
 
         OUT=`curl $IDA_CURL_OPS $IDA_NETRC -K- -o "$LOCAL_PATHNAME" "${IDA_HOST}${IDA_API}/${IDA_PROJECT_FOLDER}/${ENCODED_PATHNAME}" 2>&1 <<< "$IDA_STDIN_CREDENTIALS"`
-        if [ "$OUT" ]; then
+        if [ "$OUT" != "" ]; then
             echo "Error: curl request failed with the following output:"
             echo "$OUT"
             exit 1
@@ -708,6 +708,14 @@ fi
 #--------------------------------------------------------------------------------
 # Check that the provided credentials are valid by testing access to project folder
 
+if [ "$IDA_VERBOSE" = "true" ]; then
+    echo "Verifying specified credentials are valid..."
+fi
+
+if [ "$IDA_DEBUG" = "true" ]; then
+    echo "curl $IDA_CURL_OPS $IDA_NETRC -I -K- \"${IDA_HOST}${IDA_API}/${IDA_PROJECT_FOLDER}\" 2>&1 <<< \"$IDA_STDIN_CREDENTIALS\""
+fi
+
 CREDENTIALS_OK=`curl $IDA_CURL_OPS $IDA_NETRC -I -K- "${IDA_HOST}${IDA_API}/${IDA_PROJECT_FOLDER}" 2>&1 <<< "$IDA_STDIN_CREDENTIALS" | grep "HTTP/1.1 200 OK"`
 
 if [ "$CREDENTIALS_OK" = "" ]; then
@@ -732,7 +740,7 @@ case "$IDA_ACTION" in
     "upload")
         LOCAL_PATHNAME="$IDA_PATHNAME_2"
 
-        if [ "$IDA_DEBUG" = "true" ]; then
+        if [ "$IDA_VERBOSE" = "true" ]; then
             echo "Verifying local file or directory exists..."
         fi
 
@@ -750,7 +758,7 @@ case "$IDA_ACTION" in
     "download")
         LOCAL_PATHNAME="$IDA_PATHNAME_2"
 
-        if [ "$IDA_DEBUG" = "true" ]; then
+        if [ "$IDA_VERBOSE" = "true" ]; then
             echo "Verifying no file exists at local pathname..."
         fi
 
