@@ -445,6 +445,16 @@ function execute-ida-download {
         echo "Downloading file: ${TARGET_PATHNAME}"
     fi
 
+    # Ensure local pathname directory exists
+    LOCAL_DIRNAME=`dirname "$LOCAL_PATHNAME"`
+    if [ ! -d $LOCAL_DIRNAME ]; then
+        mkdir -p $LOCAL_DIRNAME 2>/dev/null
+        if [ ! -d $LOCAL_DIRNAME ]; then
+            echo "Error: local download folder does not exist and/or could not be created: $LOCAL_DIRNAME"
+            exit 1
+        fi
+    fi
+
     if [ "$IDA_DEBUG" = "true" ]; then
         echo "curl $IDA_CURL_OPS $IDA_NETRC -K- -o \"$LOCAL_PATHNAME\" \"${IDA_HOST}${IDA_API}/${IDA_PROJECT_FOLDER}/${ENCODED_PATHNAME}\" <<< \"$IDA_DEBUG_CREDENTIALS\""
     fi
@@ -726,42 +736,32 @@ fi
 #--------------------------------------------------------------------------------
 # Process pathname arguments
 
-# Strip any initial or final forward slash from pathnames...
-
-IDA_PATHNAME_1=`echo $IDA_PATHNAME_1 | sed -e 's/^\///' | sed -e 's/\/$//'`
-
-if [ "$IDA_PATHNAME_2" ]; then
-    IDA_PATHNAME_2=`echo $IDA_PATHNAME_2 | sed -e 's/^\///' | sed -e 's/\/$//'`
-fi
-
 TARGET_PATHNAME="$IDA_PATHNAME_1"
+
+# Strip any initial or final forward slash from target pathname...
+TARGET_PATHNAME=`echo "$TARGET_PATHNAME" | sed -e 's/^\///' | sed -e 's/\/$//'`
 
 case "$IDA_ACTION" in
     "upload")
         LOCAL_PATHNAME="$IDA_PATHNAME_2"
-
         if [ "$IDA_VERBOSE" = "true" ]; then
             echo "Verifying local file or directory exists..."
         fi
-
         if [ ! -e "$LOCAL_PATHNAME" ]; then
             echo "Error: Can't find specified file or directory."
             exit 1;
         fi
-
-        # Strip any initial './' from local pathname
-        LOCAL_PATHNAME=`echo "$LOCAL_PATHNAME" | sed -e 's/^\.\///'`
         ;;
     "move")
         NEW_TARGET_PATHNAME="$IDA_PATHNAME_2"
+        # Strip any initial or final forward slash from new target pathname...
+        NEW_TARGET_PATHNAME=`echo "$NEW_TARGET_PATHNAME" | sed -e 's/^\///' | sed -e 's/\/$//'`
         ;;
     "download")
         LOCAL_PATHNAME="$IDA_PATHNAME_2"
-
         if [ "$IDA_VERBOSE" = "true" ]; then
             echo "Verifying no file exists at local pathname..."
         fi
-
         if [ -e "$LOCAL_PATHNAME" ]; then
             echo "Error: File already exists at local pathname."
             exit 1;
