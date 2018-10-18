@@ -114,6 +114,21 @@ as `.ida-config` and edit it accordingly. Be sure to set the permissions of your
 If a `.netrc` file exists in your home directory, the script will retrieve your credentials from there. 
 If no `.netrc` file exists in your home directory, you will be prompted to enter your credentials on each invocation.
 
+### App passwords
+If you prefer not to use or store your personal account password, it is possible to create an application
+specific password which can be used and stored in place of your official account password.
+
+To create an app password, log in to the IDA web UI, and open the settings view by selecting "Personal" from
+the pull down settings menu at the top right of the view, and then either select the "Security" section in the
+left hand navigation pane or scroll down to the security section.
+
+In the field provided, enter a name for your new app password and click "Create new app password". The new app
+password will be displayed, and must be copied and saved immediately. It will not be possible to view the app
+password again, though it will be listed by the provided name and you will be able to delete it and remove it 
+from use.
+
+Enter or store the app password in your .netrc file, the same as you would your official personal account password.
+
 ## Ignore file
 The `ida` script will look for and use a file `.ida-ignore` if it exists in your home directory, to exclude
 files matching certain patterns from upload.
