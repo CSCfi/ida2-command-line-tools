@@ -250,8 +250,6 @@ function execute-ida-upload {
 
     if [ -d "$LOCAL_PATHNAME" ]; then
 
-        LOCAL_PATHNAME_LENGTH=`echo "$LOCAL_PATHNAME" | wc -c | sed -e 's/[^0-9]*//g'`
-
         # First create target directory, if necessary
 
         if [ "$IDA_VERBOSE" = "true" ]; then
@@ -281,7 +279,7 @@ function execute-ida-upload {
             while read dirname; do
 
                 if [ "$dirname" != "$LOCAL_PATHNAME" ]; then
-                    TARGET_DIRNAME=`echo "$dirname" | sed -e "s/^.\{$LOCAL_PATHNAME_LENGTH\}//" | sed -e 's/^\///'`
+                    TARGET_DIRNAME=`echo "$dirname" | sed -e "s/.*\///"`
 
                     if [ "$IDA_VERBOSE" = "true" ]; then
                         echo "Verifying folder: ${TARGET_PATHNAME}/${TARGET_DIRNAME}"
@@ -311,7 +309,7 @@ function execute-ida-upload {
         find "$LOCAL_PATHNAME" -type f $FIND_EXCLUDE | \
             while read filename; do
 
-                TARGET_FILENAME=`echo "$filename" | sed -e "s/^.\{$LOCAL_PATHNAME_LENGTH\}//" | sed -e 's/^\///'`
+                TARGET_FILENAME=`echo "$filename" | sed -e "s/.*\///"`
 
                 if [ "$IDA_VERBOSE" = "true" ]; then
                     echo "Uploading file: ${TARGET_PATHNAME}/${TARGET_FILENAME}"
