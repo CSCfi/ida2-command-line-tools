@@ -738,12 +738,13 @@ fi
 
 TARGET_PATHNAME="$IDA_PATHNAME_1"
 
-# Strip any initial or final forward slash from target pathname...
-TARGET_PATHNAME=`echo "$TARGET_PATHNAME" | sed -e 's/^\///' | sed -e 's/\/$//'`
+# Strip any initial or final forward slash and/or spaces from target pathname...
+TARGET_PATHNAME=`echo "$TARGET_PATHNAME" | sed -e 's/^ *\/ *//' | sed -e 's/ *\/ *$//'`
 
 case "$IDA_ACTION" in
     "upload")
-        LOCAL_PATHNAME="$IDA_PATHNAME_2"
+        # Strip any final forward slash and/or spaces from local pathname...
+        LOCAL_PATHNAME=`echo "$IDA_PATHNAME_2" | sed -e 's/ *\/ *$//'`
         if [ "$IDA_VERBOSE" = "true" ]; then
             echo "Verifying local file or directory exists..."
         fi
@@ -753,12 +754,12 @@ case "$IDA_ACTION" in
         fi
         ;;
     "move")
-        NEW_TARGET_PATHNAME="$IDA_PATHNAME_2"
-        # Strip any initial or final forward slash from new target pathname...
-        NEW_TARGET_PATHNAME=`echo "$NEW_TARGET_PATHNAME" | sed -e 's/^\///' | sed -e 's/\/$//'`
+        # Strip any initial or final forward slash and/or spaces from new target pathname...
+        NEW_TARGET_PATHNAME=`echo "$IDA_PATHNAME_2" | sed -e 's/^ *\/ *//' | sed -e 's/ *\/ *$//'`
         ;;
     "download")
-        LOCAL_PATHNAME="$IDA_PATHNAME_2"
+        # Strip any final forward slash and/or spaces from local pathname...
+        LOCAL_PATHNAME=`echo "$IDA_PATHNAME_2" | sed -e 's/ *\/ *$//'`
         if [ "$IDA_VERBOSE" = "true" ]; then
             echo "Verifying no file exists at local pathname..."
         fi
