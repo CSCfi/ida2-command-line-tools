@@ -39,16 +39,16 @@ v2 of the [IDA service](https://www.fairdata.fi/en/ida/) from the command line.
            -t : target host (default: "https://ida.fairdata.fi")
            -p : project name
 
-Pathnames may correspond to either files or folders, except for `download`, where only files may be specified.
-If a folder is specified, then the action is performed for all files within that folder and all subfolders.
-Actions can be performed on only one file or folder at a time. 
+Pathnames may correspond to either files or folders. If a folder is specified, then the action is
+performed for all files within that folder and all subfolders. Folders are downloaded as zip files.
+Actions can be performed on only one file or folder at a time.
 
-`target_pathname` and `new_target_pathname` are relative to the staging area of the specified project. When
-downloading, the `target_pathname` must correspond to a file, as only individual files may be downloaded.
-           
+`target_pathname` and `new_target_pathname` are relative to the staging area of the specified project.
+
 `local_pathname` is the pathname of a folder or file on the local system which is to be uploaded, or the
-pathname on the local system to which a file will be downloaded. Existing files will not be overwritten.
-           
+pathname on the local system to which a file will be downloaded (either a single data file or the zip
+file for a data folder). Existing files will not be overwritten.
+
 `move` can also be used to rename a file or folder without changing its location.
 
 ## Installation
@@ -145,6 +145,22 @@ It is also possible to explicitly specify an ignore file using the `-i` command 
 The ignore file should contain one pattern per line, and will be applied only to filenames, not to pathnames
 or portions of pathnames. Patterns should be compatible with those understood by the `-name` option of the
 POSIX `find` command.
+
+## Collision Avoidance for File Operations
+ 
+All users belonging to a given project have the same rights, and may interact with, add, and remove
+project data concurrently. To help avoid one user unintentionally interfering with another user's
+activity, the IDA service employs a number of checks and restrictions to ensure that multiple concurrent
+users' activities do not collide in undesirable ways. 
+ 
+Operations on files in the staging area, including uploading, deleting, renaming, and moving (but not
+downloading), will not be allowed if they intersect with the scope of an action that is being initiated.
+
+If an action is initiated in the web UI of the service, it takes precidence over any batch operations
+utilizing the command line tools, such that the batch operations may be blocked by the initiated action.
+In such cases, the command line tools will exit with an error message.
+
+More details can be found in the [online user guide](https://www.fairdata.fi/en/ida/user-guide#collision-avoidance).
 
 ## Special Notes
 

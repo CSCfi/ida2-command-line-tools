@@ -36,15 +36,15 @@ Usage: ida [-h]
        -t : target host (default: \"https://ida.fairdata.fi\")
        -p : project name
 
-       Pathnames may correspond to either files or folders, except for download, where only files may be specified.
-       If a folder is specified, then the action is performed for all files within that folder and all subfolders.
+       Pathnames may correspond to either files or folders. If a folder is specified, then the action is
+       performed for all files within that folder and all subfolders. Folders are downloaded as zip files.
        Actions can be performed on only one file or folder at a time.
 
-       target_pathname and new_target_pathname are relative to the staging area of the specified project. When
-       downloading, the target_pathname must correspond to a file, as only individual files may be downloaded.
+       target_pathname and new_target_pathname are relative to the staging area of the specified project.
 
        local_pathname is the pathname of a folder or file on the local system which is to be uploaded, or the
-       pathname on the local system to which a file will be downloaded. Existing files will not be overwritten.
+       pathname on the local system to which a file will be downloaded (either a single data file or the zip
+       file for a data folder). Existing files will not be overwritten.
 
        move can also be used to rename a file or folder without changing its location.
 
@@ -63,26 +63,17 @@ Usage: ida [-h]
        only be done using the web UI of the service (https://www.fairdata.fi/en/ida/user-guide/#project-data-storage).
 "
 
+#--------------------------------------------------------------------------------
+
 IDA_HOST="https://ida.fairdata.fi"
-IDA_API="/remote.php/webdav"
+IDA_WEBDAV="/remote.php/webdav"
+IDA_API="/apps/ida/api"
 IDA_STAGING_SUFFIX="%2b"
 IDA_CONFIG_FILE="$HOME/.ida-config"
 IDA_IGNORE_FILE="$HOME/.ida-ignore"
 IDA_CURL_OPS="--raw -s -S -k -L"
 IDA_EXECUTE_ACTION="true"
 IDA_NETRC=""
-
-#--------------------------------------------------------------------------------
-# Verify that required commands, tools, and applications are available...
-
-for REQUIRED in curl
-do
-    PROG_LOCATION=`/usr/bin/which $REQUIRED 2>/dev/null`
-    if [ ! -e "$PROG_LOCATION" ]; then
-        echo "Error: Can't find $REQUIRED in \$PATH."
-        exit 1
-    fi
-done
 
 #--------------------------------------------------------------------------------
 
@@ -94,8 +85,8 @@ function reportParameters {
     # for testing...
     echo ""
     echo "Project:         $IDA_PROJECT"
-    echo "Username:        $IDA_DEBUG_USERNAME"
-    echo "Password:        $IDA_DEBUG_PASSWORD"
+    echo "Username:        $IDA_VERBOSE_USERNAME"
+    echo "Password:        $IDA_VERBOSE_PASSWORD"
     echo "Configuration:   $IDA_CONFIG_FILE"
     echo "Host:            $IDA_HOST"
     echo "Action:          $IDA_ACTION"
@@ -120,7 +111,7 @@ function reportParameters {
 }
 
 function urlEncodePathname () {
-    # Escape all special characters in pathname except forward slashes
+    # Escape all special characters in pathname, for use in curl URLs
     local RESULT=`echo "${1}" | \
         sed -e 's:%:%25:g' \
             -e 's: :%20:g' \
@@ -149,23 +140,85 @@ function urlEncodePathname () {
     echo "${RESULT}"
 }
 
+function checkScope {
+
+    if [ "$IDA_DEBUG" = "true" ]; then
+        echo "Verifying pathname does not conflict with any ongoing action..."
+    fi
+
+    if [ "$IDA_DEBUG" = "true" ]; then
+        echo "curl $IDA_CURL_OPS $IDA_NETRC -X POST -K- -o /dev/null -w \"%{http_code}\" \"${IDA_HOST}${IDA_API}/checkScope?project=${IDA_PROJECT}&pathname=${1}\" 2>&1 <<< \"$IDA_VERBOSE_CREDENTIALS\" "
+    fi
+
+    RESPONSE=`curl $IDA_CURL_OPS $IDA_NETRC -X POST -K- -o /dev/null -w "%{http_code}" "${IDA_HOST}${IDA_API}/checkScope?project=${IDA_PROJECT}&pathname=${1}" 2>&1 <<< "$IDA_STDIN_CREDENTIALS" `
+
+    if [ "$IDA_DEBUG" = "true" ]; then
+        echo "Response: ${RESPONSE}"
+    fi
+
+    if [ "$RESPONSE" = "500" ]; then
+        echo "Error: Service request failed." >&2
+        exit 1
+    fi
+
+    if [ "$RESPONSE" = "409" ]; then
+        echo "Error: Specified target conflicts with an ongoing action." >&2
+        exit 1
+    fi
+}
+
 function verifyTargetExists {
 
     if [ "$IDA_VERBOSE" = "true" ]; then
         echo "Verifying specified target exists..."
     fi
 
-    ENCODED_PATHNAME=$(urlEncodePathname "${1}")
-
     if [ "$IDA_DEBUG" = "true" ]; then
-        echo "curl $IDA_CURL_OPS $IDA_NETRC -I -K- \"${IDA_HOST}${IDA_API}/${IDA_PROJECT_FOLDER}/${ENCODED_PATHNAME}\" 2>&1 <<< \"$IDA_DEBUG_CREDENTIALS\" | grep \"HTTP/1.1 404 Not Found\""
+        echo "curl $IDA_CURL_OPS $IDA_NETRC -I -K- \"${IDA_HOST}${IDA_WEBDAV}/${IDA_PROJECT_FOLDER}/${1}\" 2>&1 <<< \"$IDA_VERBOSE_CREDENTIALS\" | grep \"HTTP/1.1 404 Not Found\""
     fi
 
-    NOT_FOUND=`curl $IDA_CURL_OPS $IDA_NETRC -I -K- "${IDA_HOST}${IDA_API}/${IDA_PROJECT_FOLDER}/${ENCODED_PATHNAME}" 2>&1 <<< "$IDA_STDIN_CREDENTIALS" | grep "HTTP/1.1 404 Not Found"`
+    NOT_FOUND=`curl $IDA_CURL_OPS $IDA_NETRC -I -K- "${IDA_HOST}${IDA_WEBDAV}/${IDA_PROJECT_FOLDER}/${1}" 2>&1 <<< "$IDA_STDIN_CREDENTIALS" | grep "HTTP/1.1 404 Not Found"`
 
     if [ "$NOT_FOUND" ]; then
-        echo "Error: Specified target not found."
+        echo "Error: Specified target not found." >&2
         exit 1
+    fi
+}
+
+function verifyNewTargetDoesNotExist {
+
+    if [ "$IDA_VERBOSE" = "true" ]; then
+        echo "Verifying specified new target does not exist..."
+    fi
+
+    if [ "$IDA_DEBUG" = "true" ]; then
+        echo "curl $IDA_CURL_OPS $IDA_NETRC -I -K- \"${IDA_HOST}${IDA_WEBDAV}/${IDA_PROJECT_FOLDER}/${1}\" 2>&1 <<< \"$IDA_VERBOSE_CREDENTIALS\" | grep \"HTTP/1.1 200 OK\""
+    fi
+
+    FOUND=`curl $IDA_CURL_OPS $IDA_NETRC -I -K- "${IDA_HOST}${IDA_WEBDAV}/${IDA_PROJECT_FOLDER}/${1}" 2>&1 <<< "$IDA_STDIN_CREDENTIALS" | grep "HTTP/1.1 200 OK"`
+
+    if [ "$FOUND" ]; then
+        echo "Error: Specified new target already exists." >&2
+        exit 1
+    fi
+}
+
+function checkTargetType {
+
+    TARGET_TYPE="file"
+
+    if [ "$IDA_VERBOSE" = "true" ]; then
+        echo "Verifying specified target is a file..."
+    fi
+
+    if [ "$IDA_DEBUG" = "true" ]; then
+        echo "curl $IDA_CURL_OPS $IDA_NETRC -X PROPFIND -K- \"${IDA_HOST}${IDA_WEBDAV}/${IDA_PROJECT_FOLDER}/${1}\" 2>&1 <<< \"$IDA_VERBOSE_CREDENTIALS\" | grep \"<d:resourcetype><d:collection/></d:resourcetype>\""
+    fi
+
+    NOT_FILE=`curl $IDA_CURL_OPS $IDA_NETRC -X PROPFIND -K- "${IDA_HOST}${IDA_WEBDAV}/${IDA_PROJECT_FOLDER}/${1}" 2>&1 <<< "$IDA_STDIN_CREDENTIALS" |  grep "<d:resourcetype><d:collection/></d:resourcetype>"`
+
+    if [ "$NOT_FILE" ]; then
+        TARGET_TYPE="folder"
     fi
 }
 
@@ -175,20 +228,17 @@ function verifyTargetIsFile {
         echo "Verifying specified target is a file..."
     fi
 
-    ENCODED_PATHNAME=$(urlEncodePathname "${1}")
-
     if [ "$IDA_DEBUG" = "true" ]; then
-        echo "curl $IDA_CURL_OPS $IDA_NETRC -X PROPFIND -K- \"${IDA_HOST}${IDA_API}/${IDA_PROJECT_FOLDER}/${ENCODED_PATHNAME}\" 2>&1 <<< \"$IDA_DEBUG_CREDENTIALS\" | grep \"<d:resourcetype><d:collection/></d:resourcetype>\""
+        echo "curl $IDA_CURL_OPS $IDA_NETRC -X PROPFIND -K- \"${IDA_HOST}${IDA_WEBDAV}/${IDA_PROJECT_FOLDER}/${1}\" 2>&1 <<< \"$IDA_VERBOSE_CREDENTIALS\" | grep \"<d:resourcetype><d:collection/></d:resourcetype>\""
     fi
 
-    NOT_FILE=`curl $IDA_CURL_OPS $IDA_NETRC -X PROPFIND -K- "${IDA_HOST}${IDA_API}/${IDA_PROJECT_FOLDER}/${ENCODED_PATHNAME}" 2>&1 <<< "$IDA_STDIN_CREDENTIALS" |  grep "<d:resourcetype><d:collection/></d:resourcetype>"`
+    NOT_FILE=`curl $IDA_CURL_OPS $IDA_NETRC -X PROPFIND -K- "${IDA_HOST}${IDA_WEBDAV}/${IDA_PROJECT_FOLDER}/${1}" 2>&1 <<< "$IDA_STDIN_CREDENTIALS" |  grep "<d:resourcetype><d:collection/></d:resourcetype>"`
 
     if [ "$NOT_FILE" ]; then
-        echo "Error: Specified target is not a file."
+        echo "Error: Specified target is not a file." >&2
         exit 1
     fi
 }
-
 
 function ensureAncestorFoldersExist {
 
@@ -217,15 +267,19 @@ function ensureAncestorFoldersExist {
             echo "Verifying target pathname folder: ${ANCESTOR_FOLDER_PATHNAME}"
         fi
 
-        ENCODED_PATHNAME=$(urlEncodePathname "${ANCESTOR_FOLDER_PATHNAME}")
+        ANCESTOR_ENCODED_PATHNAME=$(urlEncodePathname "${ANCESTOR_FOLDER_PATHNAME}")
+
+        # Verify target pathname does not conflict with ongoing action
+
+        checkScope "$ANCESTOR_ENCODED_PATHNAME"
 
         if [ "$IDA_DEBUG" = "true" ]; then
-            echo "curl $IDA_CURL_OPS $IDA_NETRC -X MKCOL -K- \"${IDA_HOST}${IDA_API}/${IDA_PROJECT_FOLDER}/${ENCODED_PATHNAME}\" >/dev/null <<< \"$IDA_DEBUG_CREDENTIALS\""
+            echo "curl $IDA_CURL_OPS $IDA_NETRC -X MKCOL -K- \"${IDA_HOST}${IDA_WEBDAV}/${IDA_PROJECT_FOLDER}/${ANCESTOR_ENCODED_PATHNAME}\" >/dev/null <<< \"$IDA_VERBOSE_CREDENTIALS\""
         fi
 
         if [ "$IDA_EXECUTE_ACTION" = "true" ]; then
             # Ignore any failure (i.e. when folder already exists)
-            curl $IDA_CURL_OPS $IDA_NETRC -X MKCOL -K- "${IDA_HOST}${IDA_API}/${IDA_PROJECT_FOLDER}/${ENCODED_PATHNAME}" >/dev/null <<< "$IDA_STDIN_CREDENTIALS"
+            curl $IDA_CURL_OPS $IDA_NETRC -X MKCOL -K- "${IDA_HOST}${IDA_WEBDAV}/${IDA_PROJECT_FOLDER}/${ANCESTOR_ENCODED_PATHNAME}" >/dev/null <<< "$IDA_STDIN_CREDENTIALS"
         fi
 
         if [ "$ANCESTOR_PATHNAME" = "$ANCESTOR_FOLDER" ]; then
@@ -238,8 +292,20 @@ function ensureAncestorFoldersExist {
 
 function execute-ida-upload {
 
+    ENCODED_PATHNAME=$(urlEncodePathname "${TARGET_PATHNAME}")
+
+    # Verify target pathname does not conflict with ongoing action
+
+    checkScope "$ENCODED_PATHNAME"
+
     if [ -s "$IDA_IGNORE_FILE" ]; then
-        FIND_EXCLUDE=$(printf "! -name %s " $(cat $IDA_IGNORE_FILE))
+        FIND_EXCLUDE=$(printf " ! -name %s " $(cat $IDA_IGNORE_FILE))
+    fi
+
+    if [ "$IDA_DEBUG" = "true" ]; then
+        if [ "$FIND_EXCLUDE" ]; then
+            echo "FIND EXCLUDE: $FIND_EXCLUDE"
+        fi
     fi
 
     # Ensure all folders in target pathname exist, irregardless of local pathname
@@ -258,106 +324,113 @@ function execute-ida-upload {
             echo "Verifying folder: ${TARGET_PATHNAME}"
         fi
 
-        ENCODED_PATHNAME=$(urlEncodePathname "${TARGET_PATHNAME}")
-
         if [ "$IDA_DEBUG" = "true" ]; then
-            echo "curl $IDA_CURL_OPS $IDA_NETRC -X MKCOL -K- \"${IDA_HOST}${IDA_API}/${IDA_PROJECT_FOLDER}/${ENCODED_PATHNAME}\" >/dev/null <<< \"$IDA_DEBUG_CREDENTIALS\""
+            echo "curl $IDA_CURL_OPS $IDA_NETRC -X MKCOL -K- \"${IDA_HOST}${IDA_WEBDAV}/${IDA_PROJECT_FOLDER}/${ENCODED_PATHNAME}\" >/dev/null <<< \"$IDA_VERBOSE_CREDENTIALS\""
         fi
 
         if [ "$IDA_EXECUTE_ACTION" = "true" ]; then
 
             # Ignore any failure (i.e. when folder already exists)
 
-            curl $IDA_CURL_OPS $IDA_NETRC -X MKCOL -K- "${IDA_HOST}${IDA_API}/${IDA_PROJECT_FOLDER}/${ENCODED_PATHNAME}" >/dev/null <<< "$IDA_STDIN_CREDENTIALS"
+            curl $IDA_CURL_OPS $IDA_NETRC -X MKCOL -K- "${IDA_HOST}${IDA_WEBDAV}/${IDA_PROJECT_FOLDER}/${ENCODED_PATHNAME}" >/dev/null <<< "$IDA_STDIN_CREDENTIALS"
         fi
 
         # Next create all directories in directory tree, as necessary
 
         if [ "$IDA_VERBOSE" = "true" ]; then
             echo "Creating all target folders (if needed)..."
+            echo "find \"$LOCAL_PATHNAME\" -type d"
         fi
 
-        find "$LOCAL_PATHNAME" -type d $FIND_EXCLUDE | \
-            while read dirname; do
+        find "$LOCAL_PATHNAME" -type d | while read dirname; do
 
-                if [ "$dirname" != "$LOCAL_PATHNAME" ]; then
-                    TARGET_DIRNAME=`echo "$dirname" | sed -e "s/^.\{$LOCAL_PATHNAME_LENGTH\}//" | sed -e 's/^\///'`
-
-                    if [ "$IDA_VERBOSE" = "true" ]; then
-                        echo "Verifying folder: ${TARGET_PATHNAME}/${TARGET_DIRNAME}"
-                    fi
-    
-                    ENCODED_PATHNAME=$(urlEncodePathname "${TARGET_PATHNAME}/${TARGET_DIRNAME}")
-    
-                    if [ "$IDA_DEBUG" = "true" ]; then
-                        echo "curl $IDA_CURL_OPS $IDA_NETRC -X MKCOL -K- \"${IDA_HOST}${IDA_API}/${IDA_PROJECT_FOLDER}/${ENCODED_PATHNAME}\" >/dev/null <<< \"$IDA_DEBUG_CREDENTIALS\""
-                    fi
-    
-                    if [ "$IDA_EXECUTE_ACTION" = "true" ]; then
-    
-                        # Ignore any failure (i.e. when folder already exists)
-    
-                        curl $IDA_CURL_OPS $IDA_NETRC -X MKCOL -K- "${IDA_HOST}${IDA_API}/${IDA_PROJECT_FOLDER}/${ENCODED_PATHNAME}" >/dev/null <<< "$IDA_STDIN_CREDENTIALS"
-                    fi
-                fi
-            done
-
-        # Upload all files in directory tree
-
-        if [ "$IDA_DEBUG" = "true" ]; then
-            echo "find \"$LOCAL_PATHNAME\" -type d $FIND_EXCLUDE"
-        fi
-
-        find "$LOCAL_PATHNAME" -type f $FIND_EXCLUDE | \
-            while read filename; do
-
-                TARGET_FILENAME=`echo "$filename" | sed -e "s/^.\{$LOCAL_PATHNAME_LENGTH\}//" | sed -e 's/^\///'`
+            if [ "$dirname" != "$LOCAL_PATHNAME" ]; then
+                TARGET_DIRNAME=`echo "$dirname" | sed -e "s/^.\{$LOCAL_PATHNAME_LENGTH\}//" | sed -e 's/^\///'`
 
                 if [ "$IDA_VERBOSE" = "true" ]; then
-                    echo "Uploading file: ${TARGET_PATHNAME}/${TARGET_FILENAME}"
+                    echo "Verifying folder: ${TARGET_PATHNAME}/${TARGET_DIRNAME}"
                 fi
 
-                ENCODED_PATHNAME=$(urlEncodePathname "${TARGET_PATHNAME}/${TARGET_FILENAME}")
+                ENCODED_PATHNAME=$(urlEncodePathname "${TARGET_PATHNAME}/${TARGET_DIRNAME}")
+
+                # Verify target pathname does not conflict with ongoing action. We check before each operation in
+                # case another user initiates an action while a length upload is in progress...
+
+                checkScope "$ENCODED_PATHNAME"
 
                 if [ "$IDA_DEBUG" = "true" ]; then
-                    echo "curl $IDA_CURL_OPS $IDA_NETRC -X PUT -K- -T \"$filename\" \"${IDA_HOST}${IDA_API}/${IDA_PROJECT_FOLDER}/${ENCODED_PATHNAME}\" <<< \"$IDA_DEBUG_CREDENTIALS\""
+                    echo "curl $IDA_CURL_OPS $IDA_NETRC -X MKCOL -K- \"${IDA_HOST}${IDA_WEBDAV}/${IDA_PROJECT_FOLDER}/${ENCODED_PATHNAME}\" >/dev/null <<< \"$IDA_VERBOSE_CREDENTIALS\""
                 fi
 
                 if [ "$IDA_EXECUTE_ACTION" = "true" ]; then
 
-                    # Catch output of curl execution and report fatal error if curl fails...
+                    # Ignore any failure (i.e. when folder already exists)
 
-                    OUT=`curl $IDA_CURL_OPS $IDA_NETRC -X PUT -K- -T "$filename" "${IDA_HOST}${IDA_API}/${IDA_PROJECT_FOLDER}/${ENCODED_PATHNAME}" 2>&1 <<< "$IDA_STDIN_CREDENTIALS"`
-
-                    if [ "$OUT" != "" ]; then
-                        echo "Error: curl request failed with the following output:"
-                        echo "$OUT"
-                        exit 1
-                    fi
+                    curl $IDA_CURL_OPS $IDA_NETRC -X MKCOL -K- "${IDA_HOST}${IDA_WEBDAV}/${IDA_PROJECT_FOLDER}/${ENCODED_PATHNAME}" >/dev/null <<< "$IDA_STDIN_CREDENTIALS"
                 fi
-            done
+            fi
+        done
+
+        # Upload all files in directory tree
+
+        if [ "$IDA_DEBUG" = "true" ]; then
+            echo "Uploading all files in directory tree..."
+            echo "find \"$LOCAL_PATHNAME\" -type f $FIND_EXCLUDE"
+        fi
+
+        find "$LOCAL_PATHNAME" -type f $FIND_EXCLUDE | while read pathname; do
+
+            TARGET_FILENAME=`echo "$pathname" | sed -e "s/^.\{$LOCAL_PATHNAME_LENGTH\}//" | sed -e 's/^\///'`
+
+            if [ "$IDA_VERBOSE" = "true" ]; then
+                echo "Uploading file: ${TARGET_PATHNAME}/${TARGET_FILENAME}"
+            fi
+
+            ENCODED_PATHNAME=$(urlEncodePathname "${TARGET_PATHNAME}/${TARGET_FILENAME}")
+
+            # Verify target pathname does not conflict with ongoing action. We check before each operation in
+            # case another user initiates an action while a length upload is in progress...
+
+            checkScope "$ENCODED_PATHNAME"
+
+            if [ "$IDA_DEBUG" = "true" ]; then
+                echo "curl $IDA_CURL_OPS $IDA_NETRC -X PUT -K- -T \"$pathname\" \"${IDA_HOST}${IDA_WEBDAV}/${IDA_PROJECT_FOLDER}/${ENCODED_PATHNAME}\" <<< \"$IDA_VERBOSE_CREDENTIALS\""
+            fi
+
+            if [ "$IDA_EXECUTE_ACTION" = "true" ]; then
+
+                # Catch output of curl execution and report fatal error if curl fails...
+
+                OUT=`curl $IDA_CURL_OPS $IDA_NETRC -X PUT -K- -T "$pathname" "${IDA_HOST}${IDA_WEBDAV}/${IDA_PROJECT_FOLDER}/${ENCODED_PATHNAME}" 2>&1 <<< "$IDA_STDIN_CREDENTIALS"`
+
+                if [ "$OUT" != "" ]; then
+                    echo "Error: curl request failed with the following output:" >&2
+                    echo "$OUT" >&2
+                    exit 1
+                fi
+            fi
+        done
 
     # Else, upload individual file
+
     else
 
         if [ "$IDA_VERBOSE" = "true" ]; then
             echo "Uploading file: ${TARGET_PATHNAME}"
         fi
 
-        ENCODED_PATHNAME=$(urlEncodePathname "${TARGET_PATHNAME}")
-
         if [ "$IDA_DEBUG" = "true" ]; then
-            echo "curl $IDA_CURL_OPS $IDA_NETRC -X PUT -K- -T \"$LOCAL_PATHNAME\" \"${IDA_HOST}${IDA_API}/${IDA_PROJECT_FOLDER}/${ENCODED_PATHNAME}\" <<< \"$IDA_DEBUG_CREDENTIALS\""
+            echo "curl $IDA_CURL_OPS $IDA_NETRC -X PUT -K- -T \"$LOCAL_PATHNAME\" \"${IDA_HOST}${IDA_WEBDAV}/${IDA_PROJECT_FOLDER}/${ENCODED_PATHNAME}\" <<< \"$IDA_VERBOSE_CREDENTIALS\""
         fi
 
         if [ "$IDA_EXECUTE_ACTION" = "true" ]; then
 
             # Catch output of curl execution and report fatal error if curl fails...
 
-            OUT=`curl $IDA_CURL_OPS $IDA_NETRC -X PUT -K- -T "$LOCAL_PATHNAME" "${IDA_HOST}${IDA_API}/${IDA_PROJECT_FOLDER}/${ENCODED_PATHNAME}" 2>&1 <<< "$IDA_STDIN_CREDENTIALS"`
+            OUT=`curl $IDA_CURL_OPS $IDA_NETRC -X PUT -K- -T "$LOCAL_PATHNAME" "${IDA_HOST}${IDA_WEBDAV}/${IDA_PROJECT_FOLDER}/${ENCODED_PATHNAME}" 2>&1 <<< "$IDA_STDIN_CREDENTIALS"`
             if [ "$OUT" != "" ]; then
-                echo "Error: curl request failed with the following output:"
-                echo "$OUT"
+                echo "Error: curl request failed with the following output:" >&2
+                echo "$OUT" >&2
                 exit 1
             fi
         fi
@@ -370,9 +443,21 @@ function execute-ida-upload {
 
 function execute-ida-move {
 
+    ENCODED_PATHNAME=$(urlEncodePathname "${TARGET_PATHNAME}")
+    NEW_ENCODED_PATHNAME=$(urlEncodePathname "${NEW_TARGET_PATHNAME}")
+
+    # Verify neither target nor new target pathname conflicts with ongoing action
+
+    checkScope "$ENCODED_PATHNAME"
+    checkScope "$NEW_ENCODED_PATHNAME"
+
     # Verify that target exists
 
-    verifyTargetExists "$TARGET_PATHNAME"
+    verifyTargetExists "$ENCODED_PATHNAME"
+
+    # Verify that new target does not exist
+
+    verifyNewTargetDoesNotExist "$NEW_ENCODED_PATHNAME"
 
     # Ensure all ancestor folders in new target pathname exist
 
@@ -380,18 +465,15 @@ function execute-ida-move {
 
     # Catch output of curl execution and report fatal error if curl fails...
 
-    ENCODED_PATHNAME=$(urlEncodePathname "${TARGET_PATHNAME}")
-    NEW_ENCODED_PATHNAME=$(urlEncodePathname "${NEW_TARGET_PATHNAME}")
-
     if [ "$IDA_DEBUG" = "true" ]; then
-        echo "curl $IDA_CURL_OPS $IDA_NETRC -X MOVE -K- -H \"Destination:${IDA_HOST}${IDA_API}/${IDA_PROJECT_FOLDER}/${ENCODED_PATHNAME}\" \"${IDA_HOST}${IDA_API}/${IDA_PROJECT_FOLDER}/${TARGET_PATHNAME}\" 2>&1 <<< \"$IDA_DEBUG_CREDENTIALS\""
+        echo "curl $IDA_CURL_OPS $IDA_NETRC -X MOVE -K- -H \"Destination:${IDA_HOST}${IDA_WEBDAV}/${IDA_PROJECT_FOLDER}/${ENCODED_PATHNAME}\" \"${IDA_HOST}${IDA_WEBDAV}/${IDA_PROJECT_FOLDER}/${TARGET_PATHNAME}\" 2>&1 <<< \"$IDA_VERBOSE_CREDENTIALS\""
     fi
 
-    OUT=`curl $IDA_CURL_OPS $IDA_NETRC -X MOVE -K- -H "Destination:${IDA_HOST}${IDA_API}/${IDA_PROJECT_FOLDER}/${NEW_ENCODED_PATHNAME}" "${IDA_HOST}${IDA_API}/${IDA_PROJECT_FOLDER}/${TARGET_PATHNAME}" 2>&1 <<< "$IDA_STDIN_CREDENTIALS"`
+    OUT=`curl $IDA_CURL_OPS $IDA_NETRC -X MOVE -K- -H "Destination:${IDA_HOST}${IDA_WEBDAV}/${IDA_PROJECT_FOLDER}/${NEW_ENCODED_PATHNAME}" "${IDA_HOST}${IDA_WEBDAV}/${IDA_PROJECT_FOLDER}/${TARGET_PATHNAME}" 2>&1 <<< "$IDA_STDIN_CREDENTIALS"`
 
     if [ "$OUT" != "" ]; then
-        echo "Error: curl request failed with the following output:"
-        echo "$OUT"
+        echo "Error: curl request failed with the following output:" >&2
+        echo "$OUT" >&2
         exit 1
     fi
 
@@ -402,23 +484,27 @@ function execute-ida-move {
 
 function execute-ida-delete {
 
+    ENCODED_PATHNAME=$(urlEncodePathname "${TARGET_PATHNAME}")
+
+    # Verify target pathname does not conflict with ongoing action
+
+    checkScope "$ENCODED_PATHNAME"
+
     # Verify that target exists
 
-    verifyTargetExists "$TARGET_PATHNAME"
+    verifyTargetExists "$ENCODED_PATHNAME"
 
     # Catch output of curl execution and report fatal error if curl fails...
 
-    ENCODED_PATHNAME=$(urlEncodePathname "${TARGET_PATHNAME}")
-
     if [ "$IDA_DEBUG" = "true" ]; then
-        echo "curl $IDA_CURL_OPS $IDA_NETRC -X DELETE -K- \"${IDA_HOST}${IDA_API}/${IDA_PROJECT_FOLDER}/${ENCODED_PATHNAME}\" 2>&1 <<< \"$IDA_DEBUG_CREDENTIALS\""
+        echo "curl $IDA_CURL_OPS $IDA_NETRC -X DELETE -K- \"${IDA_HOST}${IDA_WEBDAV}/${IDA_PROJECT_FOLDER}/${ENCODED_PATHNAME}\" 2>&1 <<< \"$IDA_VERBOSE_CREDENTIALS\""
     fi
 
-    OUT=`curl $IDA_CURL_OPS $IDA_NETRC -X DELETE -K- "${IDA_HOST}${IDA_API}/${IDA_PROJECT_FOLDER}/${ENCODED_PATHNAME}" 2>&1 <<< "$IDA_STDIN_CREDENTIALS"`
+    OUT=`curl $IDA_CURL_OPS $IDA_NETRC -X DELETE -K- "${IDA_HOST}${IDA_WEBDAV}/${IDA_PROJECT_FOLDER}/${ENCODED_PATHNAME}" 2>&1 <<< "$IDA_STDIN_CREDENTIALS"`
 
     if [ "$OUT" != "" ]; then
-        echo "Error: curl request failed with the following output:"
-        echo "$OUT"
+        echo "Error: curl request failed with the following output:" >&2
+        echo "$OUT" >&2
         exit 1
     fi
 
@@ -429,52 +515,103 @@ function execute-ida-delete {
 
 function execute-ida-download {
 
-    # Verify that target exists
-
-    verifyTargetExists "$TARGET_PATHNAME"
-
-    # Verify that target is a file
-
-    verifyTargetIsFile "$TARGET_PATHNAME"
-
-    # Download file
-
     ENCODED_PATHNAME=$(urlEncodePathname "${TARGET_PATHNAME}")
 
-    if [ "$IDA_VERBOSE" = "true" ]; then
-        echo "Downloading file: ${TARGET_PATHNAME}"
-    fi
+    # Verify that target exists
+
+    verifyTargetExists "$ENCODED_PATHNAME"
 
     # Ensure local pathname directory exists
+
     LOCAL_DIRNAME=`dirname "$LOCAL_PATHNAME"`
     if [ ! -d $LOCAL_DIRNAME ]; then
         mkdir -p $LOCAL_DIRNAME 2>/dev/null
         if [ ! -d $LOCAL_DIRNAME ]; then
-            echo "Error: local download folder does not exist and/or could not be created: $LOCAL_DIRNAME"
+            echo "Error: local download folder does not exist and/or could not be created: $LOCAL_DIRNAME" >&2
             exit 1
         fi
     fi
 
-    if [ "$IDA_DEBUG" = "true" ]; then
-        echo "curl $IDA_CURL_OPS $IDA_NETRC -K- -o \"$LOCAL_PATHNAME\" \"${IDA_HOST}${IDA_API}/${IDA_PROJECT_FOLDER}/${ENCODED_PATHNAME}\" <<< \"$IDA_DEBUG_CREDENTIALS\""
-    fi
+    # Determine if target is a file
 
-    if [ "$IDA_EXECUTE_ACTION" = "true" ]; then
+    checkTargetType "$ENCODED_PATHNAME"
 
-        # Catch output of curl execution and report fatal error if curl fails...
+    if [ "$TARGET_TYPE" = "file" ]; then
 
-        OUT=`curl $IDA_CURL_OPS $IDA_NETRC -K- -o "$LOCAL_PATHNAME" "${IDA_HOST}${IDA_API}/${IDA_PROJECT_FOLDER}/${ENCODED_PATHNAME}" 2>&1 <<< "$IDA_STDIN_CREDENTIALS"`
-        if [ "$OUT" != "" ]; then
-            echo "Error: curl request failed with the following output:"
-            echo "$OUT"
+        # Download file
+
+        if [ "$IDA_VERBOSE" = "true" ]; then
+            echo "Downloading file: ${TARGET_PATHNAME}"
+        fi
+
+        if [ "$IDA_DEBUG" = "true" ]; then
+            echo "curl $IDA_CURL_OPS $IDA_NETRC -K- -o \"$LOCAL_PATHNAME\" \"${IDA_HOST}${IDA_WEBDAV}/${IDA_PROJECT_FOLDER}/${ENCODED_PATHNAME}\" <<< \"$IDA_VERBOSE_CREDENTIALS\""
+        fi
+
+        if [ "$IDA_EXECUTE_ACTION" = "true" ]; then
+
+            # Catch output of curl execution and report fatal error if curl fails...
+
+            OUT=`curl $IDA_CURL_OPS $IDA_NETRC -K- -o "$LOCAL_PATHNAME" "${IDA_HOST}${IDA_WEBDAV}/${IDA_PROJECT_FOLDER}/${ENCODED_PATHNAME}" 2>&1 <<< "$IDA_STDIN_CREDENTIALS"`
+
+            if [ "$OUT" != "" ]; then
+                echo "Error: curl request failed with the following output:" >&2
+                echo "$OUT" >&2
+                exit 1
+            fi
+        fi
+
+    else
+
+        # Verify that local pathname ends in ".zip"
+
+        BASENAME=$(basename -- "$LOCAL_PATHNAME")
+        SUFFIX="${BASENAME##*.}"
+
+        if [ "$SUFFIX" != "zip" ]; then
+            echo "Error: Local pathame does not end in \".zip\"." >&2
             exit 1
         fi
+
+        if [ "$IDA_VERBOSE" = "true" ]; then
+            echo "Downloading folder: ${TARGET_PATHNAME}"
+        fi
+
+        if [ "$IDA_DEBUG" = "true" ]; then
+            echo "curl -s -k -S -L --header \"Accept: application/zip\" $IDA_NETRC -K- -o \"$LOCAL_PATHNAME\" \"${IDA_HOST}/index.php/apps/files/ajax/download.php?dir=/${IDA_PROJECT_FOLDER}/${ENCODED_PATHNAME}\" <<< \"$IDA_VERBOSE_CREDENTIALS\""
+        fi
+
+        if [ "$IDA_EXECUTE_ACTION" = "true" ]; then
+
+            # Catch output of curl execution and report fatal error if curl fails...
+
+            OUT=`curl -s -k -S -L --header "Accept: application/zip" $IDA_NETRC -K- -o "$LOCAL_PATHNAME" "${IDA_HOST}/index.php/apps/files/ajax/download.php?dir=/${IDA_PROJECT_FOLDER}/${ENCODED_PATHNAME}" 2>&1 <<< "$IDA_STDIN_CREDENTIALS"`
+
+            if [ "$OUT" != "" ]; then
+                echo "Error: curl request failed with the following output:" >&2
+                echo "$OUT" >&2
+                exit 1
+            fi
+        fi
+
     fi
 
     if [ "$IDA_VERBOSE" = "true" ]; then
         echo "Target downloaded successfully."
     fi
 }
+
+#--------------------------------------------------------------------------------
+# Verify that required commands, tools, and applications are available...
+
+for REQUIRED in curl
+do
+    PROG_LOCATION=`/usr/bin/which $REQUIRED 2>/dev/null`
+    if [ ! -e "$PROG_LOCATION" ]; then
+        echo "Error: Can't find $REQUIRED in \$PATH." >&2
+        exit 1
+    fi
+done
 
 #--------------------------------------------------------------------------------
 # Load personal configuration file, if it exists...
@@ -503,7 +640,7 @@ case $IDA_ACTION in
     "download")
         ;;
     *)
-        echo "Error: Invalid action."
+        echo "Error: Invalid action." >&2
         exit 1;
         ;;
 esac
@@ -516,7 +653,7 @@ while [ "$1" != "" ]; do
             ;;
         -p)
             if [ "$2" = "" ]; then
-                echo "Error: Missing project name."
+                echo "Error: Missing project name." >&2
                 exit 1
             fi
             IDA_PROJECT="$2"
@@ -525,14 +662,14 @@ while [ "$1" != "" ]; do
             ;;
         -c)
             if [ "$2" = "" ]; then
-                echo "Error: Missing configuration file pathname."
+                echo "Error: Missing configuration file pathname." >&2
                 exit 1
             fi
             IDA_CONFIG_FILE="$2"
             if [ -f "${IDA_CONFIG_FILE}" ]; then
                 . "$IDA_CONFIG_FILE"
             else
-                echo "Error: Can't find specified configuration file."
+                echo "Error: Can't find specified configuration file." >&2
                 exit 1
             fi
             shift;
@@ -540,14 +677,12 @@ while [ "$1" != "" ]; do
             ;;
         -i)
             if [ "$2" = "" ]; then
-                echo "Error: Missing ignore file pathname."
+                echo "Error: Missing ignore file pathname." >&2
                 exit 1
             fi
             IDA_IGNORE_FILE="$2"
-            if [ -f "${IDA_IGNORE_FILE}" ]; then
-                . "$IDA_IGNORE_FILE"
-            else
-                echo "Error: Can't find specified ignore file."
+            if [ ! -f "${IDA_IGNORE_FILE}" ]; then
+                echo "Error: Can't find specified ignore file." >&2
                 exit 1
             fi
             shift;
@@ -555,12 +690,12 @@ while [ "$1" != "" ]; do
             ;;
         -t)
             if [ "$2" = "" ]; then
-                echo "Error: Missing target host."
+                echo "Error: Missing target host." >&2
                 exit 1
             fi
             IDA_HOST=`echo "$2" | sed -e 's/\/$//' | grep '^http'`
             if [ "$IDA_HOST" = "" ]; then
-                echo "Error: Invalid target host. Must begin with 'http(s)://'"
+                echo "Error: Invalid target host. Must begin with 'http(s)://'" >&2
                 exit 1
             fi
             shift;
@@ -595,37 +730,41 @@ done
 case $IDA_ACTION in
     "upload")
         if [ "$#" -lt 1 ]; then
-            echo "Error: Missing target and local pathnames."
+            echo "Error: Missing target and local pathnames." >&2
             exit 1;
         fi
         if [ "$#" -lt 2 ]; then
-            echo "Error: Missing local pathname."
+            if [ -e "$1" ]; then
+                echo "Error: Missing target pathname." >&2
+            else
+                echo "Error: Missing local pathname." >&2
+            fi
             exit 1;
         fi
         ;;
     "move")
         if [ "$#" -lt 1 ]; then
-            echo "Error: Missing current and new target pathnames."
+            echo "Error: Missing current and new target pathnames." >&2
             exit 1;
         fi
         if [ "$#" -lt 2 ]; then
-            echo "Error: Missing new target pathname."
+            echo "Error: Missing new target pathname." >&2
             exit 1;
         fi
         ;;
     "download")
         if [ "$#" -lt 1 ]; then
-            echo "Error: Missing target and local pathnames."
+            echo "Error: Missing target and local pathnames." >&2
             exit 1;
         fi
         if [ "$#" -lt 2 ]; then
-            echo "Error: Missing local file pathname."
+            echo "Error: Missing local file pathname." >&2
             exit 1;
         fi
         ;;
     *)
         if [ "$#" -lt 1 ]; then
-            echo "Error: Missing target pathname."
+            echo "Error: Missing target pathname." >&2
             exit 1;
         fi
         ;;
@@ -637,8 +776,13 @@ esac
 IDA_PATHNAME_1="$1"
 IDA_PATHNAME_2=""
 
-if [ "$#" -eq 2 ]; then
+if [ "$#" -gt 1 ]; then
     IDA_PATHNAME_2="$2"
+fi
+
+if [ "$#" -gt 2 ]; then
+    echo "Error: Too many parameters specified." >&2
+    exit 1;
 fi
 
 IDA_PROJECT_FOLDER="$IDA_PROJECT""$IDA_STAGING_SUFFIX"
@@ -647,7 +791,7 @@ IDA_PROJECT_FOLDER="$IDA_PROJECT""$IDA_STAGING_SUFFIX"
 # Verify required parameters are defined somewhere, else use defaults...
 
 if [ "$IDA_PROJECT" = "" ]; then
-    echo "Error: Project name not specified anywhere."
+    echo "Error: Project name not specified anywhere." >&2
     exit 1
 fi
 
@@ -673,7 +817,7 @@ if [ "${IDA_NETRC}${IDA_USERNAME}" = "" ]; then
     echo -n "username: "
     read IDA_USERNAME
     if [ "$IDA_USERNAME" = "" ]; then
-        echo "Error: Invalid username."
+        echo "Error: Invalid username." >&2
         exit 1
     fi
 fi
@@ -687,7 +831,7 @@ if [ "${IDA_NETRC}${IDA_PASSWORD}" = "" ]; then
     trap - EXIT
     echo
     if [ "$IDA_PASSWORD" = "" ]; then
-        echo "Error: Invalid password."
+        echo "Error: Invalid password." >&2
         exit 1
     fi
 fi
@@ -697,15 +841,25 @@ fi
 # build credentials to pass on command line to curl...
 
 if [ "$IDA_NETRC" ]; then
-    IDA_USERNAME=""
-    IDA_PASSWORD=""
-    IDA_DEBUG_USERNAME="(netrc)";
-    IDA_DEBUG_PASSWORD="(netrc)";
+    if [ "$IDA_DEBUG" = "true" ]; then
+        IDA_VERBOSE_USERNAME="$IDA_USERNAME"
+        IDA_VERBOSE_PASSWORD="$IDA_PASSWORD"
+    else
+        IDA_USERNAME=""
+        IDA_PASSWORD=""
+        IDA_VERBOSE_USERNAME="(netrc)"
+        IDA_VERBOSE_PASSWORD="(netrc)"
+    fi
 else
-    IDA_DEBUG_USERNAME="${IDA_USERNAME}";
-    IDA_DEBUG_PASSWORD="(stdin)";
+    if [ "$IDA_DEBUG" = "true" ]; then
+        IDA_VERBOSE_USERNAME="$IDA_USERNAME"
+        IDA_VERBOSE_PASSWORD="$IDA_PASSWORD"
+    else
+        IDA_VERBOSE_USERNAME="(stdin)"
+        IDA_VERBOSE_PASSWORD="(stdin)"
+    fi
     IDA_STDIN_CREDENTIALS="-u ${IDA_USERNAME}:${IDA_PASSWORD}"
-    IDA_DEBUG_CREDENTIALS="-u ${IDA_USERNAME}:${IDA_DEBUG_PASSWORD}"
+    IDA_VERBOSE_CREDENTIALS="-u ${IDA_VERBOSE_USERNAME}:${IDA_VERBOSE_PASSWORD}"
 fi
 
 #--------------------------------------------------------------------------------
@@ -716,24 +870,6 @@ if [ "$IDA_DEBUG" = "true" ]; then
 fi
 
 #--------------------------------------------------------------------------------
-# Check that the provided credentials are valid by testing access to project folder
-
-if [ "$IDA_VERBOSE" = "true" ]; then
-    echo "Verifying specified credentials are valid..."
-fi
-
-if [ "$IDA_DEBUG" = "true" ]; then
-    echo "curl $IDA_CURL_OPS $IDA_NETRC -I -K- \"${IDA_HOST}${IDA_API}/${IDA_PROJECT_FOLDER}\" 2>&1 <<< \"$IDA_STDIN_CREDENTIALS\""
-fi
-
-CREDENTIALS_OK=`curl $IDA_CURL_OPS $IDA_NETRC -I -K- "${IDA_HOST}${IDA_API}/${IDA_PROJECT_FOLDER}" 2>&1 <<< "$IDA_STDIN_CREDENTIALS" | grep "HTTP/1.1 200 OK"`
-
-if [ "$CREDENTIALS_OK" = "" ]; then
-    echo "Error: Authentication failed."
-    exit 1
-fi
-
-#--------------------------------------------------------------------------------
 # Process pathname arguments
 
 TARGET_PATHNAME="$IDA_PATHNAME_1"
@@ -741,34 +877,88 @@ TARGET_PATHNAME="$IDA_PATHNAME_1"
 # Strip any initial or final forward slash and/or spaces from target pathname...
 TARGET_PATHNAME=`echo "$TARGET_PATHNAME" | sed -e 's/^ *\/ *//' | sed -e 's/ *\/ *$//'`
 
+if [ "${TARGET_PATHNAME}" = "" ]; then
+    echo "Error: Target pathname invalid or missing." >&2
+    exit 1
+fi
+
 case "$IDA_ACTION" in
     "upload")
         # Strip any final forward slash and/or spaces from local pathname...
         LOCAL_PATHNAME=`echo "$IDA_PATHNAME_2" | sed -e 's/ *\/ *$//'`
+        if [ "${LOCAL_PATHNAME}" = "" ]; then
+            echo "Error: Local pathname invalid or missing." >&2
+            exit 1
+        fi
         if [ "$IDA_VERBOSE" = "true" ]; then
             echo "Verifying local file or directory exists..."
         fi
         if [ ! -e "$LOCAL_PATHNAME" ]; then
-            echo "Error: Can't find specified file or directory."
+            echo "Error: Can't find specified file or directory." >&2
             exit 1;
         fi
         ;;
     "move")
         # Strip any initial or final forward slash and/or spaces from new target pathname...
         NEW_TARGET_PATHNAME=`echo "$IDA_PATHNAME_2" | sed -e 's/^ *\/ *//' | sed -e 's/ *\/ *$//'`
+        if [ "${TARGET_PATHNAME}" = "" ]; then
+            echo "Error: New target pathname invalid or missing." >&2
+            exit 1
+        fi
         ;;
     "download")
         # Strip any final forward slash and/or spaces from local pathname...
         LOCAL_PATHNAME=`echo "$IDA_PATHNAME_2" | sed -e 's/ *\/ *$//'`
+        if [ "${LOCAL_PATHNAME}" = "" ]; then
+            echo "Error: Local pathname invalid or missing." >&2
+            exit 1
+        fi
         if [ "$IDA_VERBOSE" = "true" ]; then
-            echo "Verifying no file exists at local pathname..."
+            echo "Verifying no file or folder exists at local pathname..."
         fi
         if [ -e "$LOCAL_PATHNAME" ]; then
-            echo "Error: File already exists at local pathname."
+            echo "Error: Specified local pathname already exists." >&2
             exit 1;
         fi
         ;;
+    "delete")
+        if [ "${IDA_PATHNAME_2}" != "" ]; then
+            echo "Error: Too many parameters specified." >&2
+            exit 1
+        fi
+	;;
 esac
+
+#--------------------------------------------------------------------------------
+# Force use of HTTP or HTTPS (unsupported, used in testing)
+
+if [ "$IDA_FORCE_HTTP" = "true" ]; then
+    echo "Forcing use of HTTP"
+    IDA_HOST=`echo "$IDA_HOST" | sed -e 's/https:/http:/'`
+fi
+
+if [ "$IDA_FORCE_HTTPS" = "true" ]; then
+    echo "Forcing use of HTTPS"
+    IDA_HOST=`echo "$IDA_HOST" | sed -e 's/http:/https:/'`
+fi
+
+#--------------------------------------------------------------------------------
+# Check that the provided credentials are valid by testing access to project folder
+
+if [ "$IDA_VERBOSE" = "true" ]; then
+    echo "Verifying specified credentials are valid..."
+fi
+
+if [ "$IDA_DEBUG" = "true" ]; then
+    echo "curl $IDA_CURL_OPS $IDA_NETRC -I -K- \"${IDA_HOST}${IDA_WEBDAV}/${IDA_PROJECT_FOLDER}\" 2>&1 <<< \"$IDA_STDIN_CREDENTIALS\""
+fi
+
+CREDENTIALS_OK=`curl $IDA_CURL_OPS $IDA_NETRC -I -K- "${IDA_HOST}${IDA_WEBDAV}/${IDA_PROJECT_FOLDER}" 2>&1 <<< "$IDA_STDIN_CREDENTIALS" | grep "HTTP/1.1 200 OK"`
+
+if [ "$CREDENTIALS_OK" = "" ]; then
+    echo "Error: Authentication failed." >&2
+    exit 1
+fi
 
 #--------------------------------------------------------------------------------
 # Execute the requested action...
@@ -789,3 +979,4 @@ case "$IDA_ACTION" in
 esac
 
 exit 0
+
