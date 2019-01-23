@@ -2,7 +2,7 @@
 #--------------------------------------------------------------------------------
 # This file is part of the IDA research data storage service
 #
-# Copyright (C) 2018 Ministry of Education and Culture, Finland
+# Copyright (C) 2019 Ministry of Education and Culture, Finland
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as published
@@ -22,12 +22,45 @@
 # @link https://research.csc.fi/
 #--------------------------------------------------------------------------------
 
+RELEASE_CHECKSUM="bc717e059209437f243515d9d1a3fb6ae15dc1f20006fdf360994dfc2ab00334"
+
+IDA_BETA_SCRIPT="false"
+
+#--------------------------------------------------------------------------------
+# Verify that required commands, tools, and applications are available...
+
+if [[ "$OSTYPE" == "darwin"* ]]; then
+   # Mac OSX
+   REQUIRED_TOOLS="curl xargs awk shasum"
+else
+   # Linux
+   REQUIRED_TOOLS="curl xargs awk sha256sum"
+fi
+
+for REQUIRED in $REQUIRED_TOOLS
+do
+    PROG_LOCATION=`/usr/bin/which $REQUIRED 2>/dev/null`
+    if [ ! -e "$PROG_LOCATION" ]; then
+        echo "Error: Can't find $REQUIRED in \$PATH." >&2
+        exit 1
+    fi
+done
+
+#--------------------------------------------------------------------------------
+
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    CURRENT_CHECKSUM=`cat $0 | grep -v 'RELEASE_CHECKSUM="' | shasum -a 256 | awk '{print $1}' | tr '[A-Z]' '[a-z]'`
+else
+    CURRENT_CHECKSUM=`cat $0 | grep -v 'RELEASE_CHECKSUM="' | sha256sum - | awk '{print $1}' | tr '[A-Z]' '[a-z]'`
+fi
+
 USAGE="
 Usage: ida [-h]
-       ida upload   [-v] [-c config] [-i ignore] [-t host] [-p project] target_pathname local_pathname
-       ida download [-v] [-c config]             [-t host] [-p project] target_pathname local_pathname
-       ida move     [-v] [-c config]             [-t host] [-p project] target_pathname new_target_pathname
-       ida delete   [-v] [-c config]             [-t host] [-p project] target_pathname
+       ida upload   [-v] [-c config] [-i ignore] [-t host] [-p project]    target_pathname local_pathname
+       ida download [-v] [-c config]             [-t host] [-p project] -f target_pathname local_pathname
+       ida move     [-v] [-c config]             [-t host] [-p project]    target_pathname new_target_pathname
+       ida delete   [-v] [-c config]             [-t host] [-p project]    target_pathname
+       ida info     [-v] [-c config]             [-t host] [-p project] -f target_pathname
 
        -h : show this guide
        -v : provide verbose output
@@ -35,12 +68,14 @@ Usage: ida [-h]
        -i : ignore file
        -t : target host (default: \"https://ida.fairdata.fi\")
        -p : project name
+       -f : service pathnames are relative to frozen area
 
        Pathnames may correspond to either files or folders. If a folder is specified, then the action is
        performed for all files within that folder and all subfolders. Folders are downloaded as zip files.
        Actions can be performed on only one file or folder at a time.
 
-       target_pathname and new_target_pathname are relative to the staging area of the specified project.
+       Unless the -f parameter is specified, target_pathname and new_target_pathname are relative to the
+       staging area of the specified project. The -f parameter is only allowed for download and info actions.
 
        local_pathname is the pathname of a folder or file on the local system which is to be uploaded, or the
        pathname on the local system to which a file will be downloaded (either a single data file or the zip
@@ -61,7 +96,21 @@ Usage: ida [-h]
 
        Note that files are not officially stored persistently in the IDA service until they are frozen, which can
        only be done using the web UI of the service (https://www.fairdata.fi/en/ida/user-guide/#project-data-storage).
+
+       checksum: ${CURRENT_CHECKSUM}
 "
+
+if [ "$IDA_BETA_SCRIPT" = "true" ]; then
+    USAGE="$USAGE
+       *** UNOFFICIAL VERSION - USE AT YOUR OWN RISK! ***
+"
+fi
+
+if [ "$CURRENT_CHECKSUM" != "$RELEASE_CHECKSUM" ]; then
+    USAGE="$USAGE
+       *** MODIFIED VERSION - USE AT YOUR OWN RISK! ***
+"
+fi
 
 #--------------------------------------------------------------------------------
 
@@ -74,69 +123,55 @@ IDA_IGNORE_FILE="$HOME/.ida-ignore"
 IDA_CURL_OPS="--raw -s -S -k -L"
 IDA_EXECUTE_ACTION="true"
 IDA_NETRC=""
+IDA_FROZEN="false"
 
 #--------------------------------------------------------------------------------
 
-function reportUsage {
-    echo "$USAGE"
+SCRIPT_DIR=`dirname $0`
+
+if [ -f $SCRIPT_DIR/.debug-config ]; then
+    . $SCRIPT_DIR/.debug-config
+fi
+
+function checkScriptIntegrity {
+
+    if [ ! -f $SCRIPT_DIR/.debug ]; then
+        if [ "$CURRENT_CHECKSUM" != "$RELEASE_CHECKSUM" ]; then
+            echo "Error: Checksum of current script $CURRENT_CHECKSUM does not match checksum of released version: $RELEASE_CHECKSUM" >&2
+            exit 1
+        fi
+    fi
 }
 
-function reportParameters {
-    # for testing...
-    echo ""
-    echo "Project:         $IDA_PROJECT"
-    echo "Username:        $IDA_VERBOSE_USERNAME"
-    echo "Password:        $IDA_VERBOSE_PASSWORD"
-    echo "Configuration:   $IDA_CONFIG_FILE"
-    echo "Host:            $IDA_HOST"
-    echo "Action:          $IDA_ACTION"
-    case "$IDA_ACTION" in
-        "upload")
-            echo "Target pathname: $IDA_PATHNAME_1"
-            echo "Local pathname:  $IDA_PATHNAME_2"
-            ;;
-        "move")
-            echo "Target pathname: $IDA_PATHNAME_1"
-            echo "New pathname:    $IDA_PATHNAME_2"
-            ;;
-        "delete")
-            echo "Target pathname: $IDA_PATHNAME_1"
-            ;;
-        "download")
-            echo "Target pathname: $IDA_PATHNAME_1"
-            echo "Local pathname:  $IDA_PATHNAME_2"
-            ;;
-    esac
-    echo ""
-}
-
-function urlEncodePathname () {
-    # Escape all special characters in pathname, for use in curl URLs
+function urlEncode () {
+    # Escape all special characters, for use in curl URLs
     local RESULT=`echo "${1}" | \
-        sed -e 's:%:%25:g' \
-            -e 's: :%20:g' \
-            -e 's:+:%2b:g' \
-            -e 's:<:%3c:g' \
-            -e 's:>:%3e:g' \
-            -e 's:#:%23:g' \
-            -e 's:{:%7b:g' \
-            -e 's:}:%7d:g' \
-            -e 's:|:%7c:g' \
-            -e 's:\\\\:%5c:g' \
-            -e 's:\^:%5e:g' \
-            -e 's:~:%7e:g' \
-            -e 's:\\[:%5b:g' \
-            -e 's:\\]:%5d:g' \
-            -e 's:\`:%60:g' \
-            -e 's:;:%3b:g' \
-            -e 's:?:%3f:g' \
-            -e 's^:^%3a^g' \
-            -e 's:@:%40:g' \
-            -e 's:=:%3d:g' \
-            -e 's:&:%26:g' \
-            -e 's:\\$:%24:g' \
-            -e 's:\\!:%21:g' \
-            -e 's:\\*:%2A:g'`
+                      sed -e  's:\%:%25:g' \
+                          -e  's: :%20:g' \
+                          -e  's:\\+:%2b:g' \
+                          -e  's:<:%3c:g' \
+                          -e  's:>:%3e:g' \
+                          -e  's:\#:%23:g' \
+                          -e  's:{:%7b:g' \
+                          -e  's:}:%7d:g' \
+                          -e  's:|:%7c:g' \
+                          -e  's:\\\\:%5c:g' \
+                          -e  's:\\^:%5e:g' \
+                          -e  's:~:%7e:g' \
+                          -e  's:\\[:%5b:g' \
+                          -e  's:\\]:%5d:g' \
+                          -e $'s:\':%27:g' \
+                          -e  's:\`:%60:g' \
+                          -e  's:;:%3b:g' \
+                          -e  's:\\?:%3f:g' \
+                          -e  's/:/%3a/g' \
+                          -e  's:@:%40:g' \
+                          -e  's:=:%3d:g' \
+                          -e  's:\\&:%26:g' \
+                          -e  's:\\$:%24:g' \
+                          -e  's:\\!:%21:g' \
+                          -e  's:\\*:%2a:g'`
+
     echo "${RESULT}"
 }
 
@@ -267,7 +302,7 @@ function ensureAncestorFoldersExist {
             echo "Verifying target pathname folder: ${ANCESTOR_FOLDER_PATHNAME}"
         fi
 
-        ANCESTOR_ENCODED_PATHNAME=$(urlEncodePathname "${ANCESTOR_FOLDER_PATHNAME}")
+        ANCESTOR_ENCODED_PATHNAME=$(urlEncode "${ANCESTOR_FOLDER_PATHNAME}")
 
         # Verify target pathname does not conflict with ongoing action
 
@@ -292,7 +327,7 @@ function ensureAncestorFoldersExist {
 
 function execute-ida-upload {
 
-    ENCODED_PATHNAME=$(urlEncodePathname "${TARGET_PATHNAME}")
+    ENCODED_PATHNAME=$(urlEncode "${TARGET_PATHNAME}")
 
     # Verify target pathname does not conflict with ongoing action
 
@@ -339,6 +374,9 @@ function execute-ida-upload {
 
         if [ "$IDA_VERBOSE" = "true" ]; then
             echo "Creating all target folders (if needed)..."
+        fi
+
+        if [ "$IDA_DEBUG" = "true" ]; then
             echo "find \"$LOCAL_PATHNAME\" -type d"
         fi
 
@@ -351,7 +389,7 @@ function execute-ida-upload {
                     echo "Verifying folder: ${TARGET_PATHNAME}/${TARGET_DIRNAME}"
                 fi
 
-                ENCODED_PATHNAME=$(urlEncodePathname "${TARGET_PATHNAME}/${TARGET_DIRNAME}")
+                ENCODED_PATHNAME=$(urlEncode "${TARGET_PATHNAME}/${TARGET_DIRNAME}")
 
                 # Verify target pathname does not conflict with ongoing action. We check before each operation in
                 # case another user initiates an action while a length upload is in progress...
@@ -386,7 +424,7 @@ function execute-ida-upload {
                 echo "Uploading file: ${TARGET_PATHNAME}/${TARGET_FILENAME}"
             fi
 
-            ENCODED_PATHNAME=$(urlEncodePathname "${TARGET_PATHNAME}/${TARGET_FILENAME}")
+            ENCODED_PATHNAME=$(urlEncode "${TARGET_PATHNAME}/${TARGET_FILENAME}")
 
             # Verify target pathname does not conflict with ongoing action. We check before each operation in
             # case another user initiates an action while a length upload is in progress...
@@ -404,7 +442,7 @@ function execute-ida-upload {
                 OUT=`curl $IDA_CURL_OPS $IDA_NETRC -X PUT -K- -T "$pathname" "${IDA_HOST}${IDA_WEBDAV}/${IDA_PROJECT_FOLDER}/${ENCODED_PATHNAME}" 2>&1 <<< "$IDA_STDIN_CREDENTIALS"`
 
                 if [ "$OUT" != "" ]; then
-                    echo "Error: curl request failed with the following output:" >&2
+                    echo "Error: service request failed with the following output:" >&2
                     echo "$OUT" >&2
                     exit 1
                 fi
@@ -429,7 +467,7 @@ function execute-ida-upload {
 
             OUT=`curl $IDA_CURL_OPS $IDA_NETRC -X PUT -K- -T "$LOCAL_PATHNAME" "${IDA_HOST}${IDA_WEBDAV}/${IDA_PROJECT_FOLDER}/${ENCODED_PATHNAME}" 2>&1 <<< "$IDA_STDIN_CREDENTIALS"`
             if [ "$OUT" != "" ]; then
-                echo "Error: curl request failed with the following output:" >&2
+                echo "Error: service request failed with the following output:" >&2
                 echo "$OUT" >&2
                 exit 1
             fi
@@ -443,8 +481,8 @@ function execute-ida-upload {
 
 function execute-ida-move {
 
-    ENCODED_PATHNAME=$(urlEncodePathname "${TARGET_PATHNAME}")
-    NEW_ENCODED_PATHNAME=$(urlEncodePathname "${NEW_TARGET_PATHNAME}")
+    ENCODED_PATHNAME=$(urlEncode "${TARGET_PATHNAME}")
+    NEW_ENCODED_PATHNAME=$(urlEncode "${NEW_TARGET_PATHNAME}")
 
     # Verify neither target nor new target pathname conflicts with ongoing action
 
@@ -466,13 +504,13 @@ function execute-ida-move {
     # Catch output of curl execution and report fatal error if curl fails...
 
     if [ "$IDA_DEBUG" = "true" ]; then
-        echo "curl $IDA_CURL_OPS $IDA_NETRC -X MOVE -K- -H \"Destination:${IDA_HOST}${IDA_WEBDAV}/${IDA_PROJECT_FOLDER}/${ENCODED_PATHNAME}\" \"${IDA_HOST}${IDA_WEBDAV}/${IDA_PROJECT_FOLDER}/${TARGET_PATHNAME}\" 2>&1 <<< \"$IDA_VERBOSE_CREDENTIALS\""
+        echo "curl $IDA_CURL_OPS $IDA_NETRC -X MOVE -K- -H \"Destination:${IDA_HOST}${IDA_WEBDAV}/${IDA_PROJECT_FOLDER}/${NEW_ENCODED_PATHNAME}\" \"${IDA_HOST}${IDA_WEBDAV}/${IDA_PROJECT_FOLDER}/${ENCODED_PATHNAME}\" 2>&1 <<< \"$IDA_VERBOSE_CREDENTIALS\""
     fi
 
-    OUT=`curl $IDA_CURL_OPS $IDA_NETRC -X MOVE -K- -H "Destination:${IDA_HOST}${IDA_WEBDAV}/${IDA_PROJECT_FOLDER}/${NEW_ENCODED_PATHNAME}" "${IDA_HOST}${IDA_WEBDAV}/${IDA_PROJECT_FOLDER}/${TARGET_PATHNAME}" 2>&1 <<< "$IDA_STDIN_CREDENTIALS"`
+    OUT=`curl $IDA_CURL_OPS $IDA_NETRC -X MOVE -K- -H "Destination:${IDA_HOST}${IDA_WEBDAV}/${IDA_PROJECT_FOLDER}/${NEW_ENCODED_PATHNAME}" "${IDA_HOST}${IDA_WEBDAV}/${IDA_PROJECT_FOLDER}/${ENCODED_PATHNAME}" 2>&1 <<< "$IDA_STDIN_CREDENTIALS"`
 
     if [ "$OUT" != "" ]; then
-        echo "Error: curl request failed with the following output:" >&2
+        echo "Error: service request failed with the following output:" >&2
         echo "$OUT" >&2
         exit 1
     fi
@@ -484,7 +522,7 @@ function execute-ida-move {
 
 function execute-ida-delete {
 
-    ENCODED_PATHNAME=$(urlEncodePathname "${TARGET_PATHNAME}")
+    ENCODED_PATHNAME=$(urlEncode "${TARGET_PATHNAME}")
 
     # Verify target pathname does not conflict with ongoing action
 
@@ -503,7 +541,7 @@ function execute-ida-delete {
     OUT=`curl $IDA_CURL_OPS $IDA_NETRC -X DELETE -K- "${IDA_HOST}${IDA_WEBDAV}/${IDA_PROJECT_FOLDER}/${ENCODED_PATHNAME}" 2>&1 <<< "$IDA_STDIN_CREDENTIALS"`
 
     if [ "$OUT" != "" ]; then
-        echo "Error: curl request failed with the following output:" >&2
+        echo "Error: service request failed with the following output:" >&2
         echo "$OUT" >&2
         exit 1
     fi
@@ -515,7 +553,7 @@ function execute-ida-delete {
 
 function execute-ida-download {
 
-    ENCODED_PATHNAME=$(urlEncodePathname "${TARGET_PATHNAME}")
+    ENCODED_PATHNAME=$(urlEncode "${TARGET_PATHNAME}")
 
     # Verify that target exists
 
@@ -555,7 +593,7 @@ function execute-ida-download {
             OUT=`curl $IDA_CURL_OPS $IDA_NETRC -K- -o "$LOCAL_PATHNAME" "${IDA_HOST}${IDA_WEBDAV}/${IDA_PROJECT_FOLDER}/${ENCODED_PATHNAME}" 2>&1 <<< "$IDA_STDIN_CREDENTIALS"`
 
             if [ "$OUT" != "" ]; then
-                echo "Error: curl request failed with the following output:" >&2
+                echo "Error: service request failed with the following output:" >&2
                 echo "$OUT" >&2
                 exit 1
             fi
@@ -588,7 +626,7 @@ function execute-ida-download {
             OUT=`curl -s -k -S -L --header "Accept: application/zip" $IDA_NETRC -K- -o "$LOCAL_PATHNAME" "${IDA_HOST}/index.php/apps/files/ajax/download.php?dir=/${IDA_PROJECT_FOLDER}/${ENCODED_PATHNAME}" 2>&1 <<< "$IDA_STDIN_CREDENTIALS"`
 
             if [ "$OUT" != "" ]; then
-                echo "Error: curl request failed with the following output:" >&2
+                echo "Error: service request failed with the following output:" >&2
                 echo "$OUT" >&2
                 exit 1
             fi
@@ -601,17 +639,148 @@ function execute-ida-download {
     fi
 }
 
-#--------------------------------------------------------------------------------
-# Verify that required commands, tools, and applications are available...
+function execute-ida-info {
 
-for REQUIRED in curl
-do
-    PROG_LOCATION=`/usr/bin/which $REQUIRED 2>/dev/null`
-    if [ ! -e "$PROG_LOCATION" ]; then
-        echo "Error: Can't find $REQUIRED in \$PATH." >&2
+    ENCODED_PATHNAME=$(urlEncode "${TARGET_PATHNAME}")
+
+    # Verify target pathname does not conflict with ongoing action
+
+    checkScope "$ENCODED_PATHNAME"
+
+    # Verify that target exists
+
+    verifyTargetExists "$ENCODED_PATHNAME"
+
+    # Catch output of curl execution and report fatal error if curl fails...
+
+    if [ "$IDA_DEBUG" = "true" ]; then
+        echo "curl $IDA_CURL_OPS $IDA_NETRC -X PROPFIND -K- \"${IDA_HOST}${IDA_WEBDAV}/${IDA_PROJECT_FOLDER}/${ENCODED_PATHNAME}\" 2>&1 <<< \"$IDA_VERBOSE_CREDENTIALS\""
+    fi
+
+    OUT=`curl $IDA_CURL_OPS $IDA_NETRC -X PROPFIND -K- "${IDA_HOST}${IDA_WEBDAV}/${IDA_PROJECT_FOLDER}/${ENCODED_PATHNAME}" 2>&1 <<< "$IDA_STDIN_CREDENTIALS"`
+
+    ERROR=`echo "$OUT" | grep '<d:response>'`
+
+    if [ "$ERROR" == "" ]; then
+        echo "Error: service request failed with the following output:" >&2
+        echo "$OUT" >&2
         exit 1
     fi
-done
+
+    TARGET_TYPE="file"
+
+    NOT_FILE=`echo "$OUT" |  grep "<d:resourcetype><d:collection/></d:resourcetype>"`
+
+    if [ "$NOT_FILE" ]; then
+        TARGET_TYPE="folder"
+    fi
+
+    OUT=`echo "$OUT" | sed -e 's/</\n</g'`
+
+    echo "project:    $IDA_PROJECT"
+
+    if [ "$TARGET_PATHNAME" = "/" ]; then
+        echo "pathname:   /"
+    else
+        echo "pathname:   /$TARGET_PATHNAME"
+    fi
+
+    if [ "$IDA_FROZEN" = "true" ]; then
+        echo "area:       frozen"
+    else
+        echo "area:       staging"
+    fi
+
+    echo "type:       $TARGET_TYPE"
+
+    if [ "$TARGET_TYPE" = "file" ]; then
+
+        ENCODING=`echo "$OUT" | grep "<d:getcontenttype>" | head -1 | sed -e 's/^.*>//'`
+
+        if [ "$IDA_FROZEN" = "true" ]; then
+
+            if [ "$IDA_DEBUG" = "true" ]; then
+                echo "curl $IDA_CURL_OPS $IDA_NETRC -K- \"${IDA_HOST}${IDA_API}/files/byProjectPathname/${IDA_PROJECT}?pathname=/${ENCODED_PATHNAME}\" 2>&1 <<< \"$IDA_VERBOSE_CREDENTIALS\""
+            fi
+
+            OUT=`curl $IDA_CURL_OPS $IDA_NETRC -K- "${IDA_HOST}${IDA_API}/files/byProjectPathname/${IDA_PROJECT}?pathname=/${ENCODED_PATHNAME}" 2>&1 <<< "$IDA_STDIN_CREDENTIALS"`
+
+            ERROR=`echo "$OUT" | grep '"pid":'`
+
+            if [ "$ERROR" == "" ]; then
+                echo "Error: service request failed with the following output:" >&2
+                echo "$OUT" >&2
+                exit 1
+            fi
+
+            OUT=`echo "$OUT" | sed -e 's/[{,]/\n/g'`
+
+            PID=`echo "$OUT" | grep '"pid"' | head -1 | sed -e 's/^.*"pid"[ \t]*:[ \t]*"//' | sed -e 's/".*$//'`
+            SIZE=`echo "$OUT" | grep '"size"' | head -1 | sed -e 's/^.*"size"[ \t]*:[ \t]*//' | sed -e 's/[ \t].*$//'`
+            CHECKSUM=`echo "$OUT" | grep '"checksum"' | head -1 | sed -e 's/^.*"checksum"[ \t]*:[ \t]*"sha256://' | sed -e 's/".*$//'`
+            MODIFIED=`echo "$OUT" | grep '"modified"' | head -1 | sed -e 's/^.*"modified"[ \t]*:[ \t]*"//' | sed -e 's/".*$//'`
+            FROZEN=`echo "$OUT" | grep '"frozen"' | head -1 | sed -e 's/^.*"frozen"[ \t]*:[ \t]*"//' | sed -e 's/".*$//'`
+
+        else
+
+            SIZE=`echo "$OUT" | grep "<d:getcontentlength>" | head -1 | sed -e 's/^.*>//'`
+            MODIFIED=`echo "$OUT" | grep "<d:getlastmodified>" | head -1 | sed -e 's/^.*>//' | date -u +"%Y-%m-%dT%H:%M:%SZ"`
+
+        fi
+
+        if [ "$PID" ]; then
+            echo "pid:        $PID"
+        fi
+
+        if [ "$SIZE" ]; then
+            echo "size:       $SIZE"
+        fi
+
+        if [ "$ENCODING" ]; then
+            echo "encoding:   $ENCODING"
+        fi
+
+        if [ "$CHECKSUM" ]; then
+            echo "checksum:   $CHECKSUM"
+        fi
+
+        if [ "$MODIFIED" ]; then
+            echo "modified:   $MODIFIED"
+        fi
+
+        if [ "$FROZEN" ]; then
+            echo "frozen:     $FROZEN"
+        fi
+
+    else
+
+        SIZE=`echo "$OUT" | grep "<d:quota-used-bytes>" | head -1 | sed -e 's/^.*>//'`
+
+            if [ "$IDA_FROZEN" = true ]; then
+                SED_PATTERN="s:^.*/${IDA_PROJECT}/:  /:"
+            else
+                SED_PATTERN="s:^.*/${IDA_PROJECT}%2[Bb]/:  /:"
+        fi
+
+        echo "size:       $SIZE"
+        echo "contents:"
+
+        if [[ "$OSTYPE" == "darwin"* ]]; then
+            # Mac OSX
+            CONTENTS=$(echo "$OUT" | sed -e $'s:<:\\\n<:g' | grep "<d:href>" | tail -n +2 | sed -e "$SED_PATTERN" | \
+                       sed -e 's:n$::' | sed -e 's:\\\\\\$:$:g' | sed -e $'s:\%:\\\\x:g')
+            for CHILD_PATHNAME in $CONTENTS
+            do
+                printf "  ${CHILD_PATHNAME}\n"
+            done
+        else
+            # Linux
+            echo "$OUT" | sed -e 's/</\n</g' | grep "<d:href>" | tail -n +2 | sed -e "$SED_PATTERN" | \
+                 sed -e 's:\\\\\\$:$:g' | sed -e $'s:\%:\\\\x:g' | xargs -0 printf "%b"
+        fi
+
+    fi
+}
 
 #--------------------------------------------------------------------------------
 # Load personal configuration file, if it exists...
@@ -621,12 +790,16 @@ if [ -f "${IDA_CONFIG_FILE}" ]; then
 fi
 
 #--------------------------------------------------------------------------------
-# Process command line arguments
+# Output script usage if requested
 
 if [ "$1" = "" -o "$1" = "-h" ]; then
-    reportUsage;
-    exit 0;
+    echo "$USAGE"
+    checkScriptIntegrity
+    exit 0
 fi
+
+#--------------------------------------------------------------------------------
+# Process command line arguments
 
 IDA_ACTION="$1"; shift;
 
@@ -639,6 +812,8 @@ case $IDA_ACTION in
         ;;
     "download")
         ;;
+    "info")
+        ;;
     *)
         echo "Error: Invalid action." >&2
         exit 1;
@@ -648,7 +823,7 @@ esac
 while [ "$1" != "" ]; do
     case "$1" in
         -h)
-            reportUsage;
+            echo "$USAGE"
             exit 0;
             ;;
         -p)
@@ -718,6 +893,16 @@ while [ "$1" != "" ]; do
             IDA_EXECUTE_ACTION="false"
             shift;
             ;;
+        -f)
+            if [ "$IDA_ACTION" != "download" ]; then
+                if [ "$IDA_ACTION" != "info" ]; then
+                    echo "Error: The -f option is only allowed for download and info actions." >&2
+                    exit 1;
+                fi
+            fi
+            IDA_FROZEN="true"
+            shift;
+            ;;
         *)
             break;
             ;;
@@ -785,7 +970,11 @@ if [ "$#" -gt 2 ]; then
     exit 1;
 fi
 
-IDA_PROJECT_FOLDER="$IDA_PROJECT""$IDA_STAGING_SUFFIX"
+if [ "$IDA_FROZEN" = "true" ]; then
+    IDA_PROJECT_FOLDER="$IDA_PROJECT"
+else
+    IDA_PROJECT_FOLDER="${IDA_PROJECT}${IDA_STAGING_SUFFIX}"
+fi
 
 #--------------------------------------------------------------------------------
 # Verify required parameters are defined somewhere, else use defaults...
@@ -841,15 +1030,10 @@ fi
 # build credentials to pass on command line to curl...
 
 if [ "$IDA_NETRC" ]; then
-    if [ "$IDA_DEBUG" = "true" ]; then
-        IDA_VERBOSE_USERNAME="$IDA_USERNAME"
-        IDA_VERBOSE_PASSWORD="$IDA_PASSWORD"
-    else
-        IDA_USERNAME=""
-        IDA_PASSWORD=""
-        IDA_VERBOSE_USERNAME="(netrc)"
-        IDA_VERBOSE_PASSWORD="(netrc)"
-    fi
+    IDA_USERNAME=""
+    IDA_PASSWORD=""
+    IDA_VERBOSE_USERNAME="(netrc)"
+    IDA_VERBOSE_PASSWORD="(netrc)"
 else
     if [ "$IDA_DEBUG" = "true" ]; then
         IDA_VERBOSE_USERNAME="$IDA_USERNAME"
@@ -866,8 +1050,40 @@ fi
 # Report request details if specified...
 
 if [ "$IDA_DEBUG" = "true" ]; then
-    reportParameters
+    # for testing...
+    echo ""
+    echo "Project:         $IDA_PROJECT"
+    echo "Username:        $IDA_VERBOSE_USERNAME"
+    echo "Password:        $IDA_VERBOSE_PASSWORD"
+    echo "Configuration:   $IDA_CONFIG_FILE"
+    echo "Host:            $IDA_HOST"
+    echo "Action:          $IDA_ACTION"
+    case "$IDA_ACTION" in
+        "upload")
+            echo "Target pathname: $IDA_PATHNAME_1"
+            echo "Local pathname:  $IDA_PATHNAME_2"
+            ;;
+        "move")
+            echo "Target pathname: $IDA_PATHNAME_1"
+            echo "New pathname:    $IDA_PATHNAME_2"
+            ;;
+        "download")
+            echo "Target pathname: $IDA_PATHNAME_1"
+            echo "Local pathname:  $IDA_PATHNAME_2"
+            ;;
+        *)
+            echo "Target pathname: $IDA_PATHNAME_1"
+            ;;
+    esac
+    echo ""
+    echo "Script checksum: $CURRENT_CHECKSUM"
+    echo ""
 fi
+
+#--------------------------------------------------------------------------------
+# Ensure integrity of script
+
+checkScriptIntegrity
 
 #--------------------------------------------------------------------------------
 # Process pathname arguments
@@ -878,8 +1094,12 @@ TARGET_PATHNAME="$IDA_PATHNAME_1"
 TARGET_PATHNAME=`echo "$TARGET_PATHNAME" | sed -e 's/^ *\/ *//' | sed -e 's/ *\/ *$//'`
 
 if [ "${TARGET_PATHNAME}" = "" ]; then
-    echo "Error: Target pathname invalid or missing." >&2
-    exit 1
+    if [ "$IDA_ACTION" = "info" ]; then
+        TARGET_PATHNAME="/"
+    else
+        echo "Error: Target pathname invalid or missing." >&2
+        exit 1
+    fi
 fi
 
 case "$IDA_ACTION" in
@@ -921,24 +1141,28 @@ case "$IDA_ACTION" in
             exit 1;
         fi
         ;;
-    "delete")
+    *)
         if [ "${IDA_PATHNAME_2}" != "" ]; then
             echo "Error: Too many parameters specified." >&2
             exit 1
         fi
-	;;
+        ;;
 esac
 
 #--------------------------------------------------------------------------------
 # Force use of HTTP or HTTPS (unsupported, used in testing)
 
 if [ "$IDA_FORCE_HTTP" = "true" ]; then
-    echo "Forcing use of HTTP"
+    if [ "$IDA_VERBOSE" = "true" ]; then
+        echo "Forcing use of HTTP"
+    fi
     IDA_HOST=`echo "$IDA_HOST" | sed -e 's/https:/http:/'`
 fi
 
 if [ "$IDA_FORCE_HTTPS" = "true" ]; then
-    echo "Forcing use of HTTPS"
+    if [ "$IDA_VERBOSE" = "true" ]; then
+        echo "Forcing use of HTTPS"
+    fi
     IDA_HOST=`echo "$IDA_HOST" | sed -e 's/http:/https:/'`
 fi
 
@@ -975,6 +1199,9 @@ case "$IDA_ACTION" in
         ;;
     "download")
         execute-ida-download
+        ;;
+    "info")
+        execute-ida-info
         ;;
 esac
 

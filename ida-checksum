@@ -1,0 +1,78 @@
+#!/bin/bash
+#--------------------------------------------------------------------------------
+# This file is part of the IDA research data storage service
+#
+# Copyright (C) 2019 Ministry of Education and Culture, Finland
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Affero General Public License as published
+# by the Free Software Foundation, either version 3 of the License,
+# or (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
+# or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Affero General Public
+# License for more details.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+#
+# @author CSC - IT Center for Science Ltd., Espoo Finland <servicedesk@csc.fi>
+# @license GNU Affero General Public License, version 3
+# @link https://research.csc.fi/
+#--------------------------------------------------------------------------------
+
+USAGE="
+Usage: ida-checksum -h
+       ida-checksum local_pathname
+"
+
+#--------------------------------------------------------------------------------
+# Verify that required commands, tools, and applications are available...
+
+if [[ "$OSTYPE" == "darwin"* ]]; then
+   # Mac OSX
+   REQUIRED_TOOLS="shasum"
+else
+   # Linux
+   REQUIRED_TOOLS="sha256sum"
+fi
+
+for REQUIRED in $REQUIRED_TOOLS
+do
+    PROG_LOCATION=`/usr/bin/which $REQUIRED 2>/dev/null`
+    if [ ! -e "$PROG_LOCATION" ]; then
+        echo "Error: Can't find $REQUIRED in \$PATH." >&2
+        exit 1
+    fi
+done
+
+#--------------------------------------------------------------------------------
+# Process arguments
+
+if [ $# -ne 1 ]; then
+    echo "$USAGE" >&2
+    exit 1
+fi
+
+if [ "$1" = "-h" ]; then
+    echo "$USAGE" >&2
+    exit 0
+fi
+
+LOCAL_PATHNAME="$1"
+
+if [ ! -f "$LOCAL_PATHNAME" ]; then
+    echo "Error: Local pathname must correspond to a file." >&2
+    exit 1
+fi
+
+#--------------------------------------------------------------------------------
+# Generate and output SHA256 checksum URI
+
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    shasum -a 256 "$LOCAL_PATHNAME" | awk '{print $1}' | tr '[A-Z]' '[a-z]'
+else
+    sha256sum "$LOCAL_PATHNAME" | awk '{print $1}' | tr '[A-Z]' '[a-z]'
+fi
+

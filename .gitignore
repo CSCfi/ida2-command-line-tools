@@ -9,9 +9,12 @@ __pycache__
 *.err
 *.pyc
 *.dump
+*.swp
 project.sublime-project
 !/.gitignore
 TODO
+/.debug
+/.debug-config
 /snapshots
 /tmp
 /tags
