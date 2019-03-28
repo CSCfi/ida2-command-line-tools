@@ -22,14 +22,14 @@
 # @link https://research.csc.fi/
 #--------------------------------------------------------------------------------
 
-RELEASE_CHECKSUM="bc717e059209437f243515d9d1a3fb6ae15dc1f20006fdf360994dfc2ab00334"
+RELEASE_CHECKSUM="bcf45210fcb2d6bef4345c3cafcadfbef801cd34a6f207dc87a4bc545039c2e4"
 
 IDA_BETA_SCRIPT="false"
 
 #--------------------------------------------------------------------------------
 # Verify that required commands, tools, and applications are available...
 
-if [[ "$OSTYPE" == "darwin"* ]]; then
+if [[ "$OSTYPE" = "darwin"* ]]; then
    # Mac OSX
    REQUIRED_TOOLS="curl xargs awk shasum"
 else
@@ -48,7 +48,7 @@ done
 
 #--------------------------------------------------------------------------------
 
-if [[ "$OSTYPE" == "darwin"* ]]; then
+if [[ "$OSTYPE" = "darwin"* ]]; then
     CURRENT_CHECKSUM=`cat $0 | grep -v 'RELEASE_CHECKSUM="' | shasum -a 256 | awk '{print $1}' | tr '[A-Z]' '[a-z]'`
 else
     CURRENT_CHECKSUM=`cat $0 | grep -v 'RELEASE_CHECKSUM="' | sha256sum - | awk '{print $1}' | tr '[A-Z]' '[a-z]'`
@@ -661,7 +661,7 @@ function execute-ida-info {
 
     ERROR=`echo "$OUT" | grep '<d:response>'`
 
-    if [ "$ERROR" == "" ]; then
+    if [ "$ERROR" = "" ]; then
         echo "Error: service request failed with the following output:" >&2
         echo "$OUT" >&2
         exit 1
@@ -675,7 +675,11 @@ function execute-ida-info {
         TARGET_TYPE="folder"
     fi
 
-    OUT=`echo "$OUT" | sed -e 's/</\n</g'`
+    if [[ "$OSTYPE" = "darwin"* ]]; then
+        OUT=$(echo "$OUT" | sed -e $'s/</\\\n</g')
+    else
+        OUT=`echo "$OUT" | sed -e 's/</\n</g'`
+    fi
 
     echo "project:    $IDA_PROJECT"
 
@@ -707,19 +711,23 @@ function execute-ida-info {
 
             ERROR=`echo "$OUT" | grep '"pid":'`
 
-            if [ "$ERROR" == "" ]; then
+            if [ "$ERROR" = "" ]; then
                 echo "Error: service request failed with the following output:" >&2
                 echo "$OUT" >&2
                 exit 1
             fi
 
-            OUT=`echo "$OUT" | sed -e 's/[{,]/\n/g'`
+            if [[ "$OSTYPE" = "darwin"* ]]; then
+                OUT=$(echo "$OUT" | sed -e $'s/[{,]/\\\n/g')
+            else
+                OUT=`echo "$OUT" | sed -e 's/[{,]/\n/g'`
+            fi
 
-            PID=`echo "$OUT" | grep '"pid"' | head -1 | sed -e 's/^.*"pid"[ \t]*:[ \t]*"//' | sed -e 's/".*$//'`
-            SIZE=`echo "$OUT" | grep '"size"' | head -1 | sed -e 's/^.*"size"[ \t]*:[ \t]*//' | sed -e 's/[ \t].*$//'`
-            CHECKSUM=`echo "$OUT" | grep '"checksum"' | head -1 | sed -e 's/^.*"checksum"[ \t]*:[ \t]*"sha256://' | sed -e 's/".*$//'`
-            MODIFIED=`echo "$OUT" | grep '"modified"' | head -1 | sed -e 's/^.*"modified"[ \t]*:[ \t]*"//' | sed -e 's/".*$//'`
-            FROZEN=`echo "$OUT" | grep '"frozen"' | head -1 | sed -e 's/^.*"frozen"[ \t]*:[ \t]*"//' | sed -e 's/".*$//'`
+            PID=`echo "$OUT" | grep '"pid"' | head -1 | sed -e 's/^.*"pid"[ ]*:[ ]*"//' | sed -e 's/".*$//'`
+            SIZE=`echo "$OUT" | grep '"size"' | head -1 | sed -e 's/^.*"size"[ ]*:[ ]*//' | sed -e 's/[^0-9].*$//'`
+            CHECKSUM=`echo "$OUT" | grep '"checksum"' | head -1 | sed -e 's/^.*"checksum"[ ]*:[ ]*"sha256://' | sed -e 's/".*$//'`
+            MODIFIED=`echo "$OUT" | grep '"modified"' | head -1 | sed -e 's/^.*"modified"[ ]*:[ ]*"//' | sed -e 's/".*$//'`
+            FROZEN=`echo "$OUT" | grep '"frozen"' | head -1 | sed -e 's/^.*"frozen"[ ]*:[ ]*"//' | sed -e 's/".*$//'`
 
         else
 
@@ -765,7 +773,7 @@ function execute-ida-info {
         echo "size:       $SIZE"
         echo "contents:"
 
-        if [[ "$OSTYPE" == "darwin"* ]]; then
+        if [[ "$OSTYPE" = "darwin"* ]]; then
             # Mac OSX
             CONTENTS=$(echo "$OUT" | sed -e $'s:<:\\\n<:g' | grep "<d:href>" | tail -n +2 | sed -e "$SED_PATTERN" | \
                        sed -e 's:n$::' | sed -e 's:\\\\\\$:$:g' | sed -e $'s:\%:\\\\x:g')

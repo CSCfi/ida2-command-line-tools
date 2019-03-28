@@ -77,7 +77,7 @@ either via environment variables or provided as arguments.
 
 The `ida` script will look for and load a file `.ida-config` if it exists in your home directory.
 
-You can copy the provided example `ida-config` file from the `examples` subdirectory to your home directory
+You can copy the provided example `ida-config` file from the `templates` subdirectory to your home directory
 as `.ida-config` and edit it accordingly.
 
 It is also possible to explicitly specify a configuration file using the `-c` command line option.
@@ -118,7 +118,7 @@ the [SUI CSC Customer Portal](https://sui.csc.fi/).
 
 Account credentials should ideally be defined using [netrc](https://ec.haxx.se/usingcurl-netrc.html).
 
-You can copy the provided example `netrc` file from the `examples` subdirectory to your home directory
+You can copy the provided example `netrc` file from the `templates` subdirectory to your home directory
 as `.ida-config` and edit it accordingly. Be sure to set the permissions of your netrc file securely:
 
     chmod go-rwx $HOME/.netrc
@@ -151,7 +151,7 @@ This is useful when uploading entire folders, to exclude special system files su
 various temporary or log files which might exist within the local filesystem but are not part of the data to
 be stored in IDA.
 
-You can copy the provided example `ida-ignore` file from the `examples` subdirectory to your home directory
+You can copy the provided example `ida-ignore` file from the `templates` subdirectory to your home directory
 as `.ida-ignore` and edit it accordingly.
 
 It is also possible to explicitly specify an ignore file using the `-i` command line option.
