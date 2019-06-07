@@ -22,7 +22,7 @@
 # @link https://research.csc.fi/
 #--------------------------------------------------------------------------------
 
-RELEASE_CHECKSUM="bcf45210fcb2d6bef4345c3cafcadfbef801cd34a6f207dc87a4bc545039c2e4"
+RELEASE_CHECKSUM="c232e33f8f9412626b3a14354806f94da50a35bfd5898cc867f4a3a2910c8280"
 
 IDA_BETA_SCRIPT="false"
 
@@ -978,10 +978,13 @@ if [ "$#" -gt 2 ]; then
     exit 1;
 fi
 
+IDA_FROZEN_FOLDER="${IDA_PROJECT}"
+IDA_STAGING_FOLDER="${IDA_PROJECT}${IDA_STAGING_SUFFIX}"
+
 if [ "$IDA_FROZEN" = "true" ]; then
-    IDA_PROJECT_FOLDER="$IDA_PROJECT"
+    IDA_PROJECT_FOLDER="$IDA_FROZEN_FOLDER"
 else
-    IDA_PROJECT_FOLDER="${IDA_PROJECT}${IDA_STAGING_SUFFIX}"
+    IDA_PROJECT_FOLDER="$IDA_STAGING_FOLDER"
 fi
 
 #--------------------------------------------------------------------------------
@@ -1175,17 +1178,27 @@ if [ "$IDA_FORCE_HTTPS" = "true" ]; then
 fi
 
 #--------------------------------------------------------------------------------
-# Check that the provided credentials are valid by testing access to project folder
+# Verify the project name is lexically valid
+
+PROJECT_NAME_CHECK=`echo "$IDA_PROJECT" | grep '[^a-z0-9_]'`
+
+if [ "$PROJECT_NAME_CHECK" != "" ]; then
+    echo "Error: Invalid characters in project name." >&2
+    exit 1
+fi
+
+#--------------------------------------------------------------------------------
+# Check that the provided credentials are valid by testing access to staging folder
 
 if [ "$IDA_VERBOSE" = "true" ]; then
     echo "Verifying specified credentials are valid..."
 fi
 
 if [ "$IDA_DEBUG" = "true" ]; then
-    echo "curl $IDA_CURL_OPS $IDA_NETRC -I -K- \"${IDA_HOST}${IDA_WEBDAV}/${IDA_PROJECT_FOLDER}\" 2>&1 <<< \"$IDA_STDIN_CREDENTIALS\""
+    echo "curl $IDA_CURL_OPS $IDA_NETRC -I -K- \"${IDA_HOST}${IDA_WEBDAV}/${IDA_STAGING_FOLDER}\" 2>&1 <<< \"$IDA_STDIN_CREDENTIALS\""
 fi
 
-CREDENTIALS_OK=`curl $IDA_CURL_OPS $IDA_NETRC -I -K- "${IDA_HOST}${IDA_WEBDAV}/${IDA_PROJECT_FOLDER}" 2>&1 <<< "$IDA_STDIN_CREDENTIALS" | grep "HTTP/1.1 200 OK"`
+CREDENTIALS_OK=`curl $IDA_CURL_OPS $IDA_NETRC -I -K- "${IDA_HOST}${IDA_WEBDAV}/${IDA_STAGING_FOLDER}" 2>&1 <<< "$IDA_STDIN_CREDENTIALS" | grep "HTTP/1.1 200 OK"`
 
 if [ "$CREDENTIALS_OK" = "" ]; then
     echo "Error: Authentication failed." >&2
