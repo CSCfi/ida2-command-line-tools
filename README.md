@@ -28,11 +28,12 @@ v2 of the [IDA service](https://www.fairdata.fi/en/ida/) from the command line. 
 the end of this guide.
 
     Usage: ida [-h]
-           ida upload   [-v] [-c config] [-i ignore] [-t host] [-p project]    target_pathname local_pathname
-           ida download [-v] [-c config]             [-t host] [-p project] -f target_pathname local_pathname
-           ida move     [-v] [-c config]             [-t host] [-p project]    target_pathname new_target_pathname
-           ida delete   [-v] [-c config]             [-t host] [-p project]    target_pathname
-           ida info     [-v] [-c config]             [-t host] [-p project] -f target_pathname
+           ida upload   [-v] [-c config] [-i ignore] [-t host] [-p project]      target_pathname local_pathname
+           ida download [-v] [-c config]             [-t host] [-p project] [-f] target_pathname local_pathname
+           ida copy     [-v] [-c config]             [-t host] [-p project] [-f] target_pathname new_target_pathname
+           ida move     [-v] [-c config]             [-t host] [-p project]      target_pathname new_target_pathname
+           ida delete   [-v] [-c config]             [-t host] [-p project]      target_pathname
+           ida info     [-v] [-c config]             [-t host] [-p project] [-f] target_pathname
     
            -h : show this guide
            -v : provide verbose output
@@ -40,17 +41,17 @@ the end of this guide.
            -i : ignore file
            -t : target host (default: "https://ida.fairdata.fi")
            -p : project name
-           -f : service pathnames are relative to frozen area
-
+           -f : target_pathname is relative to frozen area, new_target_pathname is relative to staging area
 
 Pathnames may correspond to either files or folders. If a folder is specified, then the action is
 performed for all files within that folder and all subfolders. Folders are downloaded as zip files.
 Actions can be performed on only one file or folder at a time.
 
 Unless the -f parameter is specified, `target_pathname` and `new_target_pathname` are relative to the
-staging area of the specified project. If the -f parameter is specified for either a download or
-info action, then `target_pathname` and `new_target_pathname` are relative to the frozen area of the
-specified project. The -f parameter is **only** allowed for download and info actions.
+staging area of the specified project. If the -f parameter is specified, then the `target_pathname` is
+relative to the frozen area; and if the `copy` action is specified, the `new_target_pathname` is relative
+to the staging area of the specified project. The -f parameter is **only** allowed for `download`, `copy`,
+and `info` actions.
 
 `local_pathname` is the pathname of a folder or file on the local system which is to be uploaded, or the
 pathname on the local system to which a file will be downloaded (either a single data file or the zip
@@ -230,7 +231,6 @@ folder. E.g.
     type:       folder
     size:       23040
     contents:
-      /2017-08/Experiment_1/baseline/
       /2017-08/Experiment_1/test01.dat
       /2017-08/Experiment_1/test02.dat
       /2017-08/Experiment_1/test03.dat
@@ -280,7 +280,8 @@ which can only be done using the web UI of the service.
 
 For the following examples, it is assumed that the user has defined their primary project in their
 `.ida-config` file and their account credentials in their `.netrc` file.
-Note that when uploading or moving files or folders, complete target pathnames in the project staging area must
+
+Note that when uploading, copying or moving files or folders, complete target pathnames in the project staging area must
 always be specified, not merely the pathname of the folder into which data will be uploaded or moved.
 
 **Upload a local folder named "run42" to the staging area with the relative pathname "/2017-04/Experiment_42":**
@@ -311,11 +312,23 @@ always be specified, not merely the pathname of the folder into which data will 
 
     ida move /2017-04/Experiment_42 /2017-04/Experiment_42a
     
+**Copy a file in the staging area from "/2017-04/Experiment_42/test66.dat" to "/2017-04/Experiment_42/verified/test66.dat":**
+
+    ida copy /2017-04/Experiment_42/test66.dat /2017-04/Experiment_42/verified/test66.dat
+    
+&nbsp;&nbsp;&nbsp;&nbsp;The folder path "/2017-04/Experiment_42/verified" will be created if it does not already exist.
+
+**Copy a file from the frozen area from "/2017-04/Experiment_42/baseline.dat" to the staging area as "/2019-10/Experiment_56/baseline.dat":**
+
+    ida copy -f /2017-04/Experiment_42/baseline.dat /2019-10/Experiment_56/baseline.dat
+    
+&nbsp;&nbsp;&nbsp;&nbsp;The folder path "/2019-10/Experiment_56" will be created in the staging area if it does not already exist.
+    
 **Move a file in the staging area from "/2017-04/Experiment_42/test66.dat" to "/2017-04/Experiment_42/verified/test66.dat":**
 
     ida move /2017-04/Experiment_42/test66.dat /2017-04/Experiment_42/verified/test66.dat
     
-&nbsp;&nbsp;&nbsp;&nbsp;The folder "/2017-04/Experiment_42/verified" will be created if it does not already exist.
+&nbsp;&nbsp;&nbsp;&nbsp;The folder path "/2017-04/Experiment_42/verified" will be created if it does not already exist.
     
 **Delete a folder from the staging area with the relative pathname "/2017-04/Experiment_42":**
 
