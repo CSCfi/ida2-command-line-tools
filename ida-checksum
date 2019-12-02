@@ -71,8 +71,10 @@ fi
 # Generate and output SHA256 checksum URI
 
 if [[ "$OSTYPE" == "darwin"* ]]; then
-    shasum -a 256 "$LOCAL_PATHNAME" | awk '{print $1}' | tr '[A-Z]' '[a-z]'
+    CHECKSUM=`shasum -a 256 "$LOCAL_PATHNAME" | awk '{print $1}' | tr '[A-Z]' '[a-z]'`
 else
-    sha256sum "$LOCAL_PATHNAME" | awk '{print $1}' | tr '[A-Z]' '[a-z]'
+    CHECKSUM=`sha256sum "$LOCAL_PATHNAME" | awk '{print $1}' | tr '[A-Z]' '[a-z]'`
 fi
+
+echo "sha256:${CHECKSUM}"
 
