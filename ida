@@ -22,7 +22,7 @@
 # @link https://research.csc.fi/
 #--------------------------------------------------------------------------------
 
-RELEASE_CHECKSUM="d85e935c69398e9ef98050e9f3d01529127d96dd1640b6e415ad97864b0b8789"
+RELEASE_CHECKSUM="dc112f25be8889b333a8d62d40a124916aa54f1519abfa78fd4de84dc30a625d"
 
 IDA_BETA_SCRIPT="false"
 
@@ -770,7 +770,7 @@ function execute-ida-info {
 
             PID=`echo "$OUT" | grep '"pid"' | head -1 | sed -e 's/^.*"pid"[ ]*:[ ]*"//' | sed -e 's/".*$//'`
             SIZE=`echo "$OUT" | grep '"size"' | head -1 | sed -e 's/^.*"size"[ ]*:[ ]*//' | sed -e 's/[^0-9].*$//'`
-            CHECKSUM=`echo "$OUT" | grep '"checksum"' | head -1 | sed -e 's/^.*"checksum"[ ]*:[ ]*"sha256://' | sed -e 's/".*$//'`
+            CHECKSUM=`echo "$OUT" | grep '"checksum"' | head -1 | sed -e 's/^.*"checksum"[ ]*:[ ]*"//' | sed -e 's/".*$//'`
             MODIFIED=`echo "$OUT" | grep '"modified"' | head -1 | sed -e 's/^.*"modified"[ ]*:[ ]*"//' | sed -e 's/".*$//'`
             FROZEN=`echo "$OUT" | grep '"frozen"' | head -1 | sed -e 's/^.*"frozen"[ ]*:[ ]*"//' | sed -e 's/".*$//'`
 
