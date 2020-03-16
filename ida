@@ -22,7 +22,7 @@
 # @link https://research.csc.fi/
 #--------------------------------------------------------------------------------
 
-RELEASE_CHECKSUM="dc112f25be8889b333a8d62d40a124916aa54f1519abfa78fd4de84dc30a625d"
+RELEASE_CHECKSUM="eeaa772d16f02b6f4b5652c33c07d9bbddb78e39fa4894fbd4af85fcda3b0ed6"
 
 IDA_BETA_SCRIPT="false"
 
@@ -56,12 +56,13 @@ fi
 
 USAGE="
 Usage: ida [-h]
-       ida upload   [-v] [-c config] [-i ignore] [-t host] [-p project]      target_pathname local_pathname
-       ida download [-v] [-c config]             [-t host] [-p project] [-f] target_pathname local_pathname
-       ida copy     [-v] [-c config]             [-t host] [-p project] [-f] target_pathname new_target_pathname
-       ida move     [-v] [-c config]             [-t host] [-p project]      target_pathname new_target_pathname
-       ida delete   [-v] [-c config]             [-t host] [-p project]      target_pathname
-       ida info     [-v] [-c config]             [-t host] [-p project] [-f] target_pathname
+       ida upload    [-v] [-c config] [-i ignore] [-t host] [-p project]      target_pathname local_pathname
+       ida download  [-v] [-c config]             [-t host] [-p project] [-f] target_pathname local_pathname
+       ida copy      [-v] [-c config]             [-t host] [-p project] [-f] target_pathname new_target_pathname
+       ida move      [-v] [-c config]             [-t host] [-p project]      target_pathname new_target_pathname
+       ida delete    [-v] [-c config]             [-t host] [-p project]      target_pathname
+       ida info      [-v] [-c config]             [-t host] [-p project] [-f] target_pathname
+       ida inventory [-v] [-c config]             [-t host] [-p project]
 
        -h : show this guide
        -v : provide verbose output
@@ -100,6 +101,8 @@ Usage: ida [-h]
 
        Note that files are not officially stored persistently in the IDA service until they are frozen, which can
        only be done using the web UI of the service (https://www.fairdata.fi/en/ida/user-guide/#project-data-storage).
+
+       Output format of the info action is plain text with indentation. Output format of the inventory action is JSON.
 
        checksum: ${CURRENT_CHECKSUM}
 "
@@ -182,17 +185,18 @@ function urlEncode () {
 function checkScope {
 
     if [ "$IDA_DEBUG" = "true" ]; then
-        echo "Verifying pathname does not conflict with any ongoing action..."
+        echo "Verifying pathname does not conflict with any ongoing action..." >&2
     fi
 
     if [ "$IDA_DEBUG" = "true" ]; then
-        echo "curl $IDA_CURL_OPS $IDA_NETRC -X POST -K- -o /dev/null -w \"%{http_code}\" \"${IDA_HOST}${IDA_API}/checkScope?project=${IDA_PROJECT}&pathname=${1}\" 2>&1 <<< \"$IDA_VERBOSE_CREDENTIALS\" "
+        echo "curl $IDA_CURL_OPS $IDA_NETRC -X POST -K- -o /dev/null -w \"%{http_code}\"
+\"${IDA_HOST}${IDA_API}/checkScope?project=${IDA_PROJECT}&pathname=${1}\" 2>&1 <<< \"$IDA_VERBOSE_CREDENTIALS\" " >&2
     fi
 
     RESPONSE=`curl $IDA_CURL_OPS $IDA_NETRC -X POST -K- -o /dev/null -w "%{http_code}" "${IDA_HOST}${IDA_API}/checkScope?project=${IDA_PROJECT}&pathname=${1}" 2>&1 <<< "$IDA_STDIN_CREDENTIALS" `
 
     if [ "$IDA_DEBUG" = "true" ]; then
-        echo "Response: ${RESPONSE}"
+        echo "Response: ${RESPONSE}" >&2
     fi
 
     if [ "$RESPONSE" = "500" ]; then
@@ -213,7 +217,7 @@ function verifyTargetExists {
     fi
 
     if [ "$IDA_DEBUG" = "true" ]; then
-        echo "curl $IDA_CURL_OPS $IDA_NETRC -I -K- \"${IDA_HOST}${IDA_WEBDAV}/${IDA_TARGET_FOLDER}/${1}\" 2>&1 <<< \"$IDA_VERBOSE_CREDENTIALS\" | grep \"HTTP/1.1 404 Not Found\""
+        echo "curl $IDA_CURL_OPS $IDA_NETRC -I -K- \"${IDA_HOST}${IDA_WEBDAV}/${IDA_TARGET_FOLDER}/${1}\" 2>&1 <<< \"$IDA_VERBOSE_CREDENTIALS\" | grep \"HTTP/1.1 404 Not Found\"" >&2
     fi
 
     NOT_FOUND=`curl $IDA_CURL_OPS $IDA_NETRC -I -K- "${IDA_HOST}${IDA_WEBDAV}/${IDA_TARGET_FOLDER}/${1}" 2>&1 <<< "$IDA_STDIN_CREDENTIALS" | grep "HTTP/1.1 404 Not Found"`
@@ -231,7 +235,7 @@ function verifyNewTargetDoesNotExist {
     fi
 
     if [ "$IDA_DEBUG" = "true" ]; then
-        echo "curl $IDA_CURL_OPS $IDA_NETRC -I -K- \"${IDA_HOST}${IDA_WEBDAV}/${IDA_STAGING_FOLDER}/${1}\" 2>&1 <<< \"$IDA_VERBOSE_CREDENTIALS\" | grep \"HTTP/1.1 200 OK\""
+        echo "curl $IDA_CURL_OPS $IDA_NETRC -I -K- \"${IDA_HOST}${IDA_WEBDAV}/${IDA_STAGING_FOLDER}/${1}\" 2>&1 <<< \"$IDA_VERBOSE_CREDENTIALS\" | grep \"HTTP/1.1 200 OK\"" >&2
     fi
 
     FOUND=`curl $IDA_CURL_OPS $IDA_NETRC -I -K- "${IDA_HOST}${IDA_WEBDAV}/${IDA_STAGING_FOLDER}/${1}" 2>&1 <<< "$IDA_STDIN_CREDENTIALS" | grep "HTTP/1.1 200 OK"`
@@ -251,7 +255,7 @@ function checkTargetType {
     fi
 
     if [ "$IDA_DEBUG" = "true" ]; then
-        echo "curl $IDA_CURL_OPS $IDA_NETRC -X PROPFIND -K- \"${IDA_HOST}${IDA_WEBDAV}/${IDA_TARGET_FOLDER}/${1}\" 2>&1 <<< \"$IDA_VERBOSE_CREDENTIALS\" | grep \"<d:resourcetype><d:collection/></d:resourcetype>\""
+        echo "curl $IDA_CURL_OPS $IDA_NETRC -X PROPFIND -K- \"${IDA_HOST}${IDA_WEBDAV}/${IDA_TARGET_FOLDER}/${1}\" 2>&1 <<< \"$IDA_VERBOSE_CREDENTIALS\" | grep \"<d:resourcetype><d:collection/></d:resourcetype>\"" >&2
     fi
 
     NOT_FILE=`curl $IDA_CURL_OPS $IDA_NETRC -X PROPFIND -K- "${IDA_HOST}${IDA_WEBDAV}/${IDA_TARGET_FOLDER}/${1}" 2>&1 <<< "$IDA_STDIN_CREDENTIALS" |  grep "<d:resourcetype><d:collection/></d:resourcetype>"`
@@ -268,7 +272,7 @@ function verifyTargetIsFile {
     fi
 
     if [ "$IDA_DEBUG" = "true" ]; then
-        echo "curl $IDA_CURL_OPS $IDA_NETRC -X PROPFIND -K- \"${IDA_HOST}${IDA_WEBDAV}/${IDA_TARGET_FOLDER}/${1}\" 2>&1 <<< \"$IDA_VERBOSE_CREDENTIALS\" | grep \"<d:resourcetype><d:collection/></d:resourcetype>\""
+        echo "curl $IDA_CURL_OPS $IDA_NETRC -X PROPFIND -K- \"${IDA_HOST}${IDA_WEBDAV}/${IDA_TARGET_FOLDER}/${1}\" 2>&1 <<< \"$IDA_VERBOSE_CREDENTIALS\" | grep \"<d:resourcetype><d:collection/></d:resourcetype>\"" >&2
     fi
 
     NOT_FILE=`curl $IDA_CURL_OPS $IDA_NETRC -X PROPFIND -K- "${IDA_HOST}${IDA_WEBDAV}/${IDA_TARGET_FOLDER}/${1}" 2>&1 <<< "$IDA_STDIN_CREDENTIALS" |  grep "<d:resourcetype><d:collection/></d:resourcetype>"`
@@ -313,7 +317,7 @@ function ensureAncestorFoldersExist {
         checkScope "$ANCESTOR_ENCODED_PATHNAME"
 
         if [ "$IDA_DEBUG" = "true" ]; then
-            echo "curl $IDA_CURL_OPS $IDA_NETRC -X MKCOL -K- \"${IDA_HOST}${IDA_WEBDAV}/${IDA_STAGING_FOLDER}/${ANCESTOR_ENCODED_PATHNAME}\" >/dev/null <<< \"$IDA_VERBOSE_CREDENTIALS\""
+            echo "curl $IDA_CURL_OPS $IDA_NETRC -X MKCOL -K- \"${IDA_HOST}${IDA_WEBDAV}/${IDA_STAGING_FOLDER}/${ANCESTOR_ENCODED_PATHNAME}\" >/dev/null <<< \"$IDA_VERBOSE_CREDENTIALS\"" >&2
         fi
 
         if [ "$IDA_EXECUTE_ACTION" = "true" ]; then
@@ -327,6 +331,15 @@ function ensureAncestorFoldersExist {
             ANCESTOR_PATHNAME=`echo "$ANCESTOR_PATHNAME" | sed -e 's/[^\/]*\///'`
         fi
     done
+}
+
+function execute-ida-inventory {
+
+    if [ "$IDA_DEBUG" = "true" ]; then
+        echo "curl $IDA_CURL_OPS $IDA_NETRC -K- \"${IDA_HOST}${IDA_API}/inventory/${IDA_PROJECT}\" 2>&1 <<< \"$IDA_VERBOSE_CREDENTIALS\" " >&2
+    fi
+
+    curl $IDA_CURL_OPS $IDA_NETRC -K- "${IDA_HOST}${IDA_API}/inventory/${IDA_PROJECT}" <<< "$IDA_STDIN_CREDENTIALS"
 }
 
 function execute-ida-upload {
@@ -869,6 +882,8 @@ case $IDA_ACTION in
         ;;
     "info")
         ;;
+    "inventory")
+        ;;
     *)
         echo "Error: Invalid action." >&2
         exit 1;
@@ -1009,6 +1024,8 @@ case $IDA_ACTION in
             echo "Error: Missing local file pathname." >&2
             exit 1;
         fi
+        ;;
+    "inventory")
         ;;
     *)
         if [ "$#" -lt 1 ]; then
@@ -1165,7 +1182,7 @@ TARGET_PATHNAME="$IDA_PATHNAME_1"
 TARGET_PATHNAME=`echo "$TARGET_PATHNAME" | sed -e 's/^ *\/ *//' | sed -e 's/ *\/ *$//'`
 
 if [ "${TARGET_PATHNAME}" = "" ]; then
-    if [ "$IDA_ACTION" = "info" ]; then
+    if [ "$IDA_ACTION" = "info" ] || [ "$IDA_ACTION" = "inventory" ]; then
         TARGET_PATHNAME="/"
     else
         echo "Error: Target pathname invalid or missing." >&2
@@ -1303,6 +1320,9 @@ case "$IDA_ACTION" in
         ;;
     "info")
         execute-ida-info
+        ;;
+    "inventory")
+        execute-ida-inventory
         ;;
 esac
 

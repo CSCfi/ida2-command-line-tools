@@ -28,12 +28,13 @@ v2 of the [IDA service](https://www.fairdata.fi/en/ida/) from the command line. 
 the end of this guide.
 
     Usage: ida [-h]
-           ida upload   [-v] [-c config] [-i ignore] [-t host] [-p project]      target_pathname local_pathname
-           ida download [-v] [-c config]             [-t host] [-p project] [-f] target_pathname local_pathname
-           ida copy     [-v] [-c config]             [-t host] [-p project] [-f] target_pathname new_target_pathname
-           ida move     [-v] [-c config]             [-t host] [-p project]      target_pathname new_target_pathname
-           ida delete   [-v] [-c config]             [-t host] [-p project]      target_pathname
-           ida info     [-v] [-c config]             [-t host] [-p project] [-f] target_pathname
+           ida upload    [-v] [-c config] [-i ignore] [-t host] [-p project]      target_pathname local_pathname
+           ida download  [-v] [-c config]             [-t host] [-p project] [-f] target_pathname local_pathname
+           ida copy      [-v] [-c config]             [-t host] [-p project] [-f] target_pathname new_target_pathname
+           ida move      [-v] [-c config]             [-t host] [-p project]      target_pathname new_target_pathname
+           ida delete    [-v] [-c config]             [-t host] [-p project]      target_pathname
+           ida info      [-v] [-c config]             [-t host] [-p project] [-f] target_pathname
+           ida inventory [-v] [-c config]             [-t host] [-p project]
     
            -h : show this guide
            -v : provide verbose output
@@ -192,7 +193,7 @@ followed by a colon ":" and padded by one or more spaces. E.g.
     type:       file
     pid:        5c41b5d90561a361661419f75150
     size:       446
-    checksum:   56293a80e0394d252e995f2debccea8223e4b5b2b150bee212729b3b39ac4d46
+    checksum:   sha256:56293a80e0394d252e995f2debccea8223e4b5b2b150bee212729b3b39ac4d46
     encoding:   application/octet-stream
     modified:   2017-01-03T19:27:42Z
     frozen:     2017-01-18T11:17:15Z
@@ -257,10 +258,39 @@ Fields included for all folders, in either the staging or frozen areas:
 * size
 * contents
 
+### File Inventory
+
+The output of the `inventory` action is encoded as a JSON object with the following example structure:
+
+    {
+        "project": "some_project",
+        "created": "2020-03-13T12:58:36Z",
+        "totalFiles": 83,
+        "totalStagedFiles": 45,
+        "totalFrozenFiles": 38,
+        "staging": {
+            "\/relative\/pathname\/of\/staged\/file.dat": {
+                "size": 1234,
+                "modified": "2020-02-11T14:04:26Z"
+            },
+            ...
+        },
+        "frozen": {
+            "\/relative\/pathname\/of\/frozen\/file.dat": {
+                "size": 4567,
+                "modified": "2020-02-11T14:04:26Z",
+                "pid": "5e4ea9a829bfe465487185f441180",
+                "checksum": "sha256:b5bb9d8014a0f9b1d61e21e796d78dccdf1352f23cd32812f4850b878ae4944c",
+                "frozen": "2020-02-20T15:07:32Z"
+            },
+            ...
+        }
+    }
+
 ## Local File Checksum Generation
 
 The included utility `ida-checksum` can be used to generate a checksum for a local file, of the same
-format (SHA256, lowercase) used by the IDA service.
+format (SHA-256, lowercase) used by the IDA service.
 
     Usage: ida-checksum -h
            ida-checksum local_pathname
@@ -354,11 +384,15 @@ always be specified, not merely the pathname of the folder into which data will 
 
     ida info -f /2017-04/Experiment_42/test66.dat
     
-**Retrive info about the root of the staging area of the project:**
+**Retrieve info about the root of the staging area of the project:**
 
     ida info /
     
-**Retrive info about the root of the frozen area of the project:**
+**Retrieve info about the root of the frozen area of the project:**
 
     ida info -f /
     
+**Retrieve an inventory of all project files stored in the service:**
+
+    ida inventory
+
