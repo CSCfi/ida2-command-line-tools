@@ -56,7 +56,8 @@ and `info` actions.
 
 `local_pathname` is the pathname of a folder or file on the local system which is to be uploaded, or the
 pathname on the local system to which a file will be downloaded (either a single data file or the zip
-file for a data folder). Existing files will not be overwritten.
+file for a data folder). Existing local files will not be overwritten when downloading, however, uploaded
+files will overwrite any existing files in the IDA service.
 
 `move` can also be used to rename a file or folder without changing its location.
 

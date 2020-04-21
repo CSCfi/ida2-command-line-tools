@@ -22,7 +22,7 @@
 # @link https://research.csc.fi/
 #--------------------------------------------------------------------------------
 
-RELEASE_CHECKSUM="eeaa772d16f02b6f4b5652c33c07d9bbddb78e39fa4894fbd4af85fcda3b0ed6"
+RELEASE_CHECKSUM="88921293dd17403fa73c4f7c7e836a1f03f376787f5a905317d2509a2886a1d4"
 
 IDA_BETA_SCRIPT="false"
 
@@ -84,7 +84,8 @@ Usage: ida [-h]
 
        local_pathname is the pathname of a folder or file on the local system which is to be uploaded, or the
        pathname on the local system to which a file will be downloaded (either a single data file or the zip
-       file for a data folder). Existing files will not be overwritten.
+       file for a data folder). Existing local files will not be overwritten when downloading, however, uploaded
+       files will overwrite any existing files in the IDA service.
 
        move can also be used to rename a file or folder without changing its location.
 
