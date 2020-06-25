@@ -56,8 +56,7 @@ and `info` actions.
 
 `local_pathname` is the pathname of a folder or file on the local system which is to be uploaded, or the
 pathname on the local system to which a file will be downloaded (either a single data file or the zip
-file for a data folder). Existing local files will not be overwritten when downloading, however, uploaded
-files will overwrite any existing files in the IDA service.
+file for a data folder). Existing files will not be overwritten.
 
 `move` can also be used to rename a file or folder without changing its location.
 
@@ -117,7 +116,7 @@ main production service.
 The `ida` script will need to be provided your IDA account credentials in order to access the project space.
 
 The username and password credentials are the same as you use to log in to the IDA web UI, and are managed in
-the [SUI CSC Customer Portal](https://sui.csc.fi/).
+the CSC Customer Portal [MyCSC](https://my.csc.fi/).
 
 Account credentials should ideally be defined using [netrc](https://ec.haxx.se/usingcurl-netrc.html).
 
