@@ -12,6 +12,11 @@ if [ "$BRANCH" == "master" ]; then
     exit 1
 fi
 
+if [ "$BRANCH" == "stable" ]; then
+    echo "Error: You may not delete the stable branch!"
+    exit 1
+fi
+
 git checkout master
 git branch -D $1
 git push private --delete $1
