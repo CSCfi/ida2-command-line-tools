@@ -22,7 +22,7 @@
 # @link https://research.csc.fi/
 #--------------------------------------------------------------------------------
 
-RELEASE_CHECKSUM="88921293dd17403fa73c4f7c7e836a1f03f376787f5a905317d2509a2886a1d4"
+RELEASE_CHECKSUM="3746465dfc9f557ecb39141051c01caea961d611d2d5d39e6d06409bfc84706c"
 
 IDA_BETA_SCRIPT="false"
 
@@ -122,24 +122,20 @@ fi
 
 #--------------------------------------------------------------------------------
 
+SCRIPT_DIR=`dirname $0`
+
 IDA_HOST="https://ida.fairdata.fi"
 IDA_WEBDAV="/remote.php/webdav"
 IDA_API="/apps/ida/api"
 IDA_STAGING_SUFFIX="%2b"
 IDA_CONFIG_FILE="$HOME/.ida-config"
 IDA_IGNORE_FILE="$HOME/.ida-ignore"
-IDA_CURL_OPS="--raw -s -S -k -L"
+IDA_CURL_OPS="-s -S -k -L"
 IDA_EXECUTE_ACTION="true"
 IDA_NETRC=""
 IDA_FROZEN="false"
 
 #--------------------------------------------------------------------------------
-
-SCRIPT_DIR=`dirname $0`
-
-if [ -f $SCRIPT_DIR/.debug-config ]; then
-    . $SCRIPT_DIR/.debug-config
-fi
 
 function checkScriptIntegrity {
 
@@ -854,6 +850,13 @@ function execute-ida-info {
 
 if [ -f "${IDA_CONFIG_FILE}" ]; then
     . "$IDA_CONFIG_FILE"
+fi
+
+#--------------------------------------------------------------------------------
+# Load debug configuration file, if it exists...
+
+if [ -f $SCRIPT_DIR/.debug-config ]; then
+    . $SCRIPT_DIR/.debug-config
 fi
 
 #--------------------------------------------------------------------------------
