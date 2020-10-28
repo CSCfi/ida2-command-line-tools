@@ -22,7 +22,7 @@
 # @link https://research.csc.fi/
 #--------------------------------------------------------------------------------
 
-RELEASE_CHECKSUM="3746465dfc9f557ecb39141051c01caea961d611d2d5d39e6d06409bfc84706c"
+RELEASE_CHECKSUM="578d892c8d566be307911c740598b59a0ee047c384bd49a009e55695267f7c51"
 
 IDA_BETA_SCRIPT="false"
 
@@ -787,7 +787,8 @@ function execute-ida-info {
         else
 
             SIZE=`echo "$OUT" | grep "<d:getcontentlength>" | head -1 | sed -e 's/^.*>//'`
-            MODIFIED=`echo "$OUT" | grep "<d:getlastmodified>" | head -1 | sed -e 's/^.*>//' | date -u +"%Y-%m-%dT%H:%M:%SZ"`
+            MODIFIED=`echo "$OUT" | grep "<d:getlastmodified>" | head -1 | sed -e 's/^.*>//'`
+            MODIFIED=`date -u +"%Y-%m-%dT%H:%M:%SZ" -d "$MODIFIED"`
 
         fi
 
@@ -832,15 +833,16 @@ function execute-ida-info {
             # Mac OSX
             CONTENTS=$(echo "$OUT" | sed -e $'s:<:\\\n<:g' | grep "<d:href>" | tail -n +2 | sed -e "$SED_PATTERN" | \
                        sed -e 's:n$::' | sed -e 's:\\\\\\$:$:g' | sed -e $'s:\%:\\\\x:g')
-            for CHILD_PATHNAME in $CONTENTS
-            do
-                printf "  ${CHILD_PATHNAME}\n"
-            done
         else
             # Linux
-            echo "$OUT" | sed -e 's/</\n</g' | grep "<d:href>" | tail -n +2 | sed -e "$SED_PATTERN" | \
-                 sed -e 's:\\\\\\$:$:g' | sed -e $'s:\%:\\\\x:g' | xargs -0 printf "%b"
+            CONTENTS=$(echo "$OUT" | sed -e 's/</\n</g' | grep "<d:href>" | tail -n +2 | sed -e "$SED_PATTERN" | \
+                       sed -e 's:\\\\\\$:$:g' | sed -e $'s:\%:\\\\x:g')
         fi
+
+        for CHILD_PATHNAME in $CONTENTS
+        do
+            printf "  ${CHILD_PATHNAME}\n"
+        done
 
     fi
 }
