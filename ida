@@ -22,7 +22,7 @@
 # @link https://research.csc.fi/
 #--------------------------------------------------------------------------------
 
-RELEASE_CHECKSUM="578d892c8d566be307911c740598b59a0ee047c384bd49a009e55695267f7c51"
+RELEASE_CHECKSUM="44339923ad2b14d6bc939c265dbf1b4d4e3085063493433641b05989f7bfe332"
 
 IDA_BETA_SCRIPT="false"
 
@@ -186,11 +186,11 @@ function checkScope {
     fi
 
     if [ "$IDA_DEBUG" = "true" ]; then
-        echo "curl $IDA_CURL_OPS $IDA_NETRC -X POST -K- -o /dev/null -w \"%{http_code}\"
+        echo "curl $IDA_CURL_OPS $IDA_NETRC --globoff -X POST -K- -o /dev/null -w \"%{http_code}\"
 \"${IDA_HOST}${IDA_API}/checkScope?project=${IDA_PROJECT}&pathname=${1}\" 2>&1 <<< \"$IDA_VERBOSE_CREDENTIALS\" " >&2
     fi
 
-    RESPONSE=`curl $IDA_CURL_OPS $IDA_NETRC -X POST -K- -o /dev/null -w "%{http_code}" "${IDA_HOST}${IDA_API}/checkScope?project=${IDA_PROJECT}&pathname=${1}" 2>&1 <<< "$IDA_STDIN_CREDENTIALS" `
+    RESPONSE=`curl $IDA_CURL_OPS $IDA_NETRC --globoff -X POST -K- -o /dev/null -w "%{http_code}" "${IDA_HOST}${IDA_API}/checkScope?project=${IDA_PROJECT}&pathname=${1}" 2>&1 <<< "$IDA_STDIN_CREDENTIALS" `
 
     if [ "$IDA_DEBUG" = "true" ]; then
         echo "Response: ${RESPONSE}" >&2
@@ -214,10 +214,10 @@ function verifyTargetExists {
     fi
 
     if [ "$IDA_DEBUG" = "true" ]; then
-        echo "curl $IDA_CURL_OPS $IDA_NETRC -I -K- \"${IDA_HOST}${IDA_WEBDAV}/${IDA_TARGET_FOLDER}/${1}\" 2>&1 <<< \"$IDA_VERBOSE_CREDENTIALS\" | grep \"HTTP/1.1 404 Not Found\"" >&2
+        echo "curl $IDA_CURL_OPS $IDA_NETRC --globoff -I -K- \"${IDA_HOST}${IDA_WEBDAV}/${IDA_TARGET_FOLDER}/${1}\" 2>&1 <<< \"$IDA_VERBOSE_CREDENTIALS\" | grep \"HTTP/1.1 404 Not Found\"" >&2
     fi
 
-    NOT_FOUND=`curl $IDA_CURL_OPS $IDA_NETRC -I -K- "${IDA_HOST}${IDA_WEBDAV}/${IDA_TARGET_FOLDER}/${1}" 2>&1 <<< "$IDA_STDIN_CREDENTIALS" | grep "HTTP/1.1 404 Not Found"`
+    NOT_FOUND=`curl $IDA_CURL_OPS $IDA_NETRC --globoff -I -K- "${IDA_HOST}${IDA_WEBDAV}/${IDA_TARGET_FOLDER}/${1}" 2>&1 <<< "$IDA_STDIN_CREDENTIALS" | grep "HTTP/1.1 404 Not Found"`
 
     if [ "$NOT_FOUND" ]; then
         echo "Error: Specified target not found." >&2
@@ -232,10 +232,10 @@ function verifyNewTargetDoesNotExist {
     fi
 
     if [ "$IDA_DEBUG" = "true" ]; then
-        echo "curl $IDA_CURL_OPS $IDA_NETRC -I -K- \"${IDA_HOST}${IDA_WEBDAV}/${IDA_STAGING_FOLDER}/${1}\" 2>&1 <<< \"$IDA_VERBOSE_CREDENTIALS\" | grep \"HTTP/1.1 200 OK\"" >&2
+        echo "curl $IDA_CURL_OPS $IDA_NETRC --globoff -I -K- \"${IDA_HOST}${IDA_WEBDAV}/${IDA_STAGING_FOLDER}/${1}\" 2>&1 <<< \"$IDA_VERBOSE_CREDENTIALS\" | grep \"HTTP/1.1 200 OK\"" >&2
     fi
 
-    FOUND=`curl $IDA_CURL_OPS $IDA_NETRC -I -K- "${IDA_HOST}${IDA_WEBDAV}/${IDA_STAGING_FOLDER}/${1}" 2>&1 <<< "$IDA_STDIN_CREDENTIALS" | grep "HTTP/1.1 200 OK"`
+    FOUND=`curl $IDA_CURL_OPS $IDA_NETRC --globoff -I -K- "${IDA_HOST}${IDA_WEBDAV}/${IDA_STAGING_FOLDER}/${1}" 2>&1 <<< "$IDA_STDIN_CREDENTIALS" | grep "HTTP/1.1 200 OK"`
 
     if [ "$FOUND" ]; then
         echo "Error: Specified new target already exists." >&2
@@ -252,10 +252,10 @@ function checkTargetType {
     fi
 
     if [ "$IDA_DEBUG" = "true" ]; then
-        echo "curl $IDA_CURL_OPS $IDA_NETRC -X PROPFIND -K- \"${IDA_HOST}${IDA_WEBDAV}/${IDA_TARGET_FOLDER}/${1}\" 2>&1 <<< \"$IDA_VERBOSE_CREDENTIALS\" | grep \"<d:resourcetype><d:collection/></d:resourcetype>\"" >&2
+        echo "curl $IDA_CURL_OPS $IDA_NETRC --globoff -X PROPFIND -K- \"${IDA_HOST}${IDA_WEBDAV}/${IDA_TARGET_FOLDER}/${1}\" 2>&1 <<< \"$IDA_VERBOSE_CREDENTIALS\" | grep \"<d:resourcetype><d:collection/></d:resourcetype>\"" >&2
     fi
 
-    NOT_FILE=`curl $IDA_CURL_OPS $IDA_NETRC -X PROPFIND -K- "${IDA_HOST}${IDA_WEBDAV}/${IDA_TARGET_FOLDER}/${1}" 2>&1 <<< "$IDA_STDIN_CREDENTIALS" |  grep "<d:resourcetype><d:collection/></d:resourcetype>"`
+    NOT_FILE=`curl $IDA_CURL_OPS $IDA_NETRC --globoff -X PROPFIND -K- "${IDA_HOST}${IDA_WEBDAV}/${IDA_TARGET_FOLDER}/${1}" 2>&1 <<< "$IDA_STDIN_CREDENTIALS" |  grep "<d:resourcetype><d:collection/></d:resourcetype>"`
 
     if [ "$NOT_FILE" ]; then
         TARGET_TYPE="folder"
@@ -269,10 +269,10 @@ function verifyTargetIsFile {
     fi
 
     if [ "$IDA_DEBUG" = "true" ]; then
-        echo "curl $IDA_CURL_OPS $IDA_NETRC -X PROPFIND -K- \"${IDA_HOST}${IDA_WEBDAV}/${IDA_TARGET_FOLDER}/${1}\" 2>&1 <<< \"$IDA_VERBOSE_CREDENTIALS\" | grep \"<d:resourcetype><d:collection/></d:resourcetype>\"" >&2
+        echo "curl $IDA_CURL_OPS $IDA_NETRC --globoff -X PROPFIND -K- \"${IDA_HOST}${IDA_WEBDAV}/${IDA_TARGET_FOLDER}/${1}\" 2>&1 <<< \"$IDA_VERBOSE_CREDENTIALS\" | grep \"<d:resourcetype><d:collection/></d:resourcetype>\"" >&2
     fi
 
-    NOT_FILE=`curl $IDA_CURL_OPS $IDA_NETRC -X PROPFIND -K- "${IDA_HOST}${IDA_WEBDAV}/${IDA_TARGET_FOLDER}/${1}" 2>&1 <<< "$IDA_STDIN_CREDENTIALS" |  grep "<d:resourcetype><d:collection/></d:resourcetype>"`
+    NOT_FILE=`curl $IDA_CURL_OPS $IDA_NETRC --globoff -X PROPFIND -K- "${IDA_HOST}${IDA_WEBDAV}/${IDA_TARGET_FOLDER}/${1}" 2>&1 <<< "$IDA_STDIN_CREDENTIALS" |  grep "<d:resourcetype><d:collection/></d:resourcetype>"`
 
     if [ "$NOT_FILE" ]; then
         echo "Error: Specified target is not a file." >&2
@@ -314,12 +314,12 @@ function ensureAncestorFoldersExist {
         checkScope "$ANCESTOR_ENCODED_PATHNAME"
 
         if [ "$IDA_DEBUG" = "true" ]; then
-            echo "curl $IDA_CURL_OPS $IDA_NETRC -X MKCOL -K- \"${IDA_HOST}${IDA_WEBDAV}/${IDA_STAGING_FOLDER}/${ANCESTOR_ENCODED_PATHNAME}\" >/dev/null <<< \"$IDA_VERBOSE_CREDENTIALS\"" >&2
+            echo "curl $IDA_CURL_OPS $IDA_NETRC --globoff -X MKCOL -K- \"${IDA_HOST}${IDA_WEBDAV}/${IDA_STAGING_FOLDER}/${ANCESTOR_ENCODED_PATHNAME}\" >/dev/null <<< \"$IDA_VERBOSE_CREDENTIALS\"" >&2
         fi
 
         if [ "$IDA_EXECUTE_ACTION" = "true" ]; then
             # Ignore any failure (i.e. when folder already exists)
-            curl $IDA_CURL_OPS $IDA_NETRC -X MKCOL -K- "${IDA_HOST}${IDA_WEBDAV}/${IDA_STAGING_FOLDER}/${ANCESTOR_ENCODED_PATHNAME}" >/dev/null <<< "$IDA_STDIN_CREDENTIALS"
+            curl $IDA_CURL_OPS $IDA_NETRC --globoff -X MKCOL -K- "${IDA_HOST}${IDA_WEBDAV}/${IDA_STAGING_FOLDER}/${ANCESTOR_ENCODED_PATHNAME}" >/dev/null <<< "$IDA_STDIN_CREDENTIALS"
         fi
 
         if [ "$ANCESTOR_PATHNAME" = "$ANCESTOR_FOLDER" ]; then
@@ -333,10 +333,10 @@ function ensureAncestorFoldersExist {
 function execute-ida-inventory {
 
     if [ "$IDA_DEBUG" = "true" ]; then
-        echo "curl $IDA_CURL_OPS $IDA_NETRC -K- \"${IDA_HOST}${IDA_API}/inventory/${IDA_PROJECT}\" 2>&1 <<< \"$IDA_VERBOSE_CREDENTIALS\" " >&2
+        echo "curl $IDA_CURL_OPS $IDA_NETRC --globoff -K- \"${IDA_HOST}${IDA_API}/inventory/${IDA_PROJECT}\" 2>&1 <<< \"$IDA_VERBOSE_CREDENTIALS\" " >&2
     fi
 
-    curl $IDA_CURL_OPS $IDA_NETRC -K- "${IDA_HOST}${IDA_API}/inventory/${IDA_PROJECT}" <<< "$IDA_STDIN_CREDENTIALS"
+    curl $IDA_CURL_OPS $IDA_NETRC --globoff -K- "${IDA_HOST}${IDA_API}/inventory/${IDA_PROJECT}" <<< "$IDA_STDIN_CREDENTIALS"
 }
 
 function execute-ida-upload {
@@ -374,14 +374,14 @@ function execute-ida-upload {
         fi
 
         if [ "$IDA_DEBUG" = "true" ]; then
-            echo "curl $IDA_CURL_OPS $IDA_NETRC -X MKCOL -K- \"${IDA_HOST}${IDA_WEBDAV}/${IDA_STAGING_FOLDER}/${ENCODED_PATHNAME}\" >/dev/null <<< \"$IDA_VERBOSE_CREDENTIALS\""
+            echo "curl $IDA_CURL_OPS $IDA_NETRC --globoff -X MKCOL -K- \"${IDA_HOST}${IDA_WEBDAV}/${IDA_STAGING_FOLDER}/${ENCODED_PATHNAME}\" >/dev/null <<< \"$IDA_VERBOSE_CREDENTIALS\""
         fi
 
         if [ "$IDA_EXECUTE_ACTION" = "true" ]; then
 
             # Ignore any failure (i.e. when folder already exists)
 
-            curl $IDA_CURL_OPS $IDA_NETRC -X MKCOL -K- "${IDA_HOST}${IDA_WEBDAV}/${IDA_STAGING_FOLDER}/${ENCODED_PATHNAME}" >/dev/null <<< "$IDA_STDIN_CREDENTIALS"
+            curl $IDA_CURL_OPS $IDA_NETRC --globoff -X MKCOL -K- "${IDA_HOST}${IDA_WEBDAV}/${IDA_STAGING_FOLDER}/${ENCODED_PATHNAME}" >/dev/null <<< "$IDA_STDIN_CREDENTIALS"
         fi
 
         # Next create all directories in directory tree, as necessary
@@ -411,14 +411,14 @@ function execute-ida-upload {
                 checkScope "$ENCODED_PATHNAME"
 
                 if [ "$IDA_DEBUG" = "true" ]; then
-                    echo "curl $IDA_CURL_OPS $IDA_NETRC -X MKCOL -K- \"${IDA_HOST}${IDA_WEBDAV}/${IDA_STAGING_FOLDER}/${ENCODED_PATHNAME}\" >/dev/null <<< \"$IDA_VERBOSE_CREDENTIALS\""
+                    echo "curl $IDA_CURL_OPS $IDA_NETRC --globoff -X MKCOL -K- \"${IDA_HOST}${IDA_WEBDAV}/${IDA_STAGING_FOLDER}/${ENCODED_PATHNAME}\" >/dev/null <<< \"$IDA_VERBOSE_CREDENTIALS\""
                 fi
 
                 if [ "$IDA_EXECUTE_ACTION" = "true" ]; then
 
                     # Ignore any failure (i.e. when folder already exists)
 
-                    curl $IDA_CURL_OPS $IDA_NETRC -X MKCOL -K- "${IDA_HOST}${IDA_WEBDAV}/${IDA_STAGING_FOLDER}/${ENCODED_PATHNAME}" >/dev/null <<< "$IDA_STDIN_CREDENTIALS"
+                    curl $IDA_CURL_OPS $IDA_NETRC --globoff -X MKCOL -K- "${IDA_HOST}${IDA_WEBDAV}/${IDA_STAGING_FOLDER}/${ENCODED_PATHNAME}" >/dev/null <<< "$IDA_STDIN_CREDENTIALS"
                 fi
             fi
         done
@@ -446,14 +446,14 @@ function execute-ida-upload {
             checkScope "$ENCODED_PATHNAME"
 
             if [ "$IDA_DEBUG" = "true" ]; then
-                echo "curl $IDA_CURL_OPS $IDA_NETRC -X PUT -K- -T \"$pathname\" \"${IDA_HOST}${IDA_WEBDAV}/${IDA_STAGING_FOLDER}/${ENCODED_PATHNAME}\" <<< \"$IDA_VERBOSE_CREDENTIALS\""
+                echo "curl $IDA_CURL_OPS $IDA_NETRC --globoff -X PUT -K- -T \"$pathname\" \"${IDA_HOST}${IDA_WEBDAV}/${IDA_STAGING_FOLDER}/${ENCODED_PATHNAME}\" <<< \"$IDA_VERBOSE_CREDENTIALS\""
             fi
 
             if [ "$IDA_EXECUTE_ACTION" = "true" ]; then
 
                 # Catch output of curl execution and report fatal error if curl fails...
 
-                OUT=`curl $IDA_CURL_OPS $IDA_NETRC -X PUT -K- -T "$pathname" "${IDA_HOST}${IDA_WEBDAV}/${IDA_STAGING_FOLDER}/${ENCODED_PATHNAME}" 2>&1 <<< "$IDA_STDIN_CREDENTIALS"`
+                OUT=`curl $IDA_CURL_OPS $IDA_NETRC --globoff -X PUT -K- -T "$pathname" "${IDA_HOST}${IDA_WEBDAV}/${IDA_STAGING_FOLDER}/${ENCODED_PATHNAME}" 2>&1 <<< "$IDA_STDIN_CREDENTIALS"`
 
                 if [ "$OUT" != "" ]; then
                     echo "Error: service request failed with the following output:" >&2
@@ -472,14 +472,14 @@ function execute-ida-upload {
         fi
 
         if [ "$IDA_DEBUG" = "true" ]; then
-            echo "curl $IDA_CURL_OPS $IDA_NETRC -X PUT -K- -T \"$LOCAL_PATHNAME\" \"${IDA_HOST}${IDA_WEBDAV}/${IDA_STAGING_FOLDER}/${ENCODED_PATHNAME}\" <<< \"$IDA_VERBOSE_CREDENTIALS\""
+            echo "curl $IDA_CURL_OPS $IDA_NETRC --globoff -X PUT -K- -T \"$LOCAL_PATHNAME\" \"${IDA_HOST}${IDA_WEBDAV}/${IDA_STAGING_FOLDER}/${ENCODED_PATHNAME}\" <<< \"$IDA_VERBOSE_CREDENTIALS\""
         fi
 
         if [ "$IDA_EXECUTE_ACTION" = "true" ]; then
 
             # Catch output of curl execution and report fatal error if curl fails...
 
-            OUT=`curl $IDA_CURL_OPS $IDA_NETRC -X PUT -K- -T "$LOCAL_PATHNAME" "${IDA_HOST}${IDA_WEBDAV}/${IDA_STAGING_FOLDER}/${ENCODED_PATHNAME}" 2>&1 <<< "$IDA_STDIN_CREDENTIALS"`
+            OUT=`curl $IDA_CURL_OPS $IDA_NETRC --globoff -X PUT -K- -T "$LOCAL_PATHNAME" "${IDA_HOST}${IDA_WEBDAV}/${IDA_STAGING_FOLDER}/${ENCODED_PATHNAME}" 2>&1 <<< "$IDA_STDIN_CREDENTIALS"`
             if [ "$OUT" != "" ]; then
                 echo "Error: service request failed with the following output:" >&2
                 echo "$OUT" >&2
@@ -518,10 +518,10 @@ function execute-ida-move {
     # Catch output of curl execution and report fatal error if curl fails...
 
     if [ "$IDA_DEBUG" = "true" ]; then
-        echo "curl $IDA_CURL_OPS $IDA_NETRC -X MOVE -K- -H \"Destination:${IDA_HOST}${IDA_WEBDAV}/${IDA_STAGING_FOLDER}/${NEW_ENCODED_PATHNAME}\" \"${IDA_HOST}${IDA_WEBDAV}/${IDA_STAGING_FOLDER}/${ENCODED_PATHNAME}\" 2>&1 <<< \"$IDA_VERBOSE_CREDENTIALS\""
+        echo "curl $IDA_CURL_OPS $IDA_NETRC --globoff -X MOVE -K- -H \"Destination:${IDA_HOST}${IDA_WEBDAV}/${IDA_STAGING_FOLDER}/${NEW_ENCODED_PATHNAME}\" \"${IDA_HOST}${IDA_WEBDAV}/${IDA_STAGING_FOLDER}/${ENCODED_PATHNAME}\" 2>&1 <<< \"$IDA_VERBOSE_CREDENTIALS\""
     fi
 
-    OUT=`curl $IDA_CURL_OPS $IDA_NETRC -X MOVE -K- -H "Destination:${IDA_HOST}${IDA_WEBDAV}/${IDA_STAGING_FOLDER}/${NEW_ENCODED_PATHNAME}" "${IDA_HOST}${IDA_WEBDAV}/${IDA_STAGING_FOLDER}/${ENCODED_PATHNAME}" 2>&1 <<< "$IDA_STDIN_CREDENTIALS"`
+    OUT=`curl $IDA_CURL_OPS $IDA_NETRC --globoff -X MOVE -K- -H "Destination:${IDA_HOST}${IDA_WEBDAV}/${IDA_STAGING_FOLDER}/${NEW_ENCODED_PATHNAME}" "${IDA_HOST}${IDA_WEBDAV}/${IDA_STAGING_FOLDER}/${ENCODED_PATHNAME}" 2>&1 <<< "$IDA_STDIN_CREDENTIALS"`
 
     if [ "$OUT" != "" ]; then
         echo "Error: service request failed with the following output:" >&2
@@ -559,10 +559,10 @@ function execute-ida-copy {
     # Catch output of curl execution and report fatal error if curl fails...
 
     if [ "$IDA_DEBUG" = "true" ]; then
-        echo "curl $IDA_CURL_OPS $IDA_NETRC -X COPY -K- -H \"Destination:${IDA_HOST}${IDA_WEBDAV}/${IDA_STAGING_FOLDER}/${NEW_ENCODED_PATHNAME}\" \"${IDA_HOST}${IDA_WEBDAV}/${IDA_TARGET_FOLDER}/${ENCODED_PATHNAME}\" 2>&1 <<< \"$IDA_VERBOSE_CREDENTIALS\""
+        echo "curl $IDA_CURL_OPS $IDA_NETRC --globoff -X COPY -K- -H \"Destination:${IDA_HOST}${IDA_WEBDAV}/${IDA_STAGING_FOLDER}/${NEW_ENCODED_PATHNAME}\" \"${IDA_HOST}${IDA_WEBDAV}/${IDA_TARGET_FOLDER}/${ENCODED_PATHNAME}\" 2>&1 <<< \"$IDA_VERBOSE_CREDENTIALS\""
     fi
 
-    OUT=`curl $IDA_CURL_OPS $IDA_NETRC -X COPY -K- -H "Destination:${IDA_HOST}${IDA_WEBDAV}/${IDA_STAGING_FOLDER}/${NEW_ENCODED_PATHNAME}" "${IDA_HOST}${IDA_WEBDAV}/${IDA_TARGET_FOLDER}/${ENCODED_PATHNAME}" 2>&1 <<< "$IDA_STDIN_CREDENTIALS"`
+    OUT=`curl $IDA_CURL_OPS $IDA_NETRC --globoff -X COPY -K- -H "Destination:${IDA_HOST}${IDA_WEBDAV}/${IDA_STAGING_FOLDER}/${NEW_ENCODED_PATHNAME}" "${IDA_HOST}${IDA_WEBDAV}/${IDA_TARGET_FOLDER}/${ENCODED_PATHNAME}" 2>&1 <<< "$IDA_STDIN_CREDENTIALS"`
 
     if [ "$OUT" != "" ]; then
         echo "Error: service request failed with the following output:" >&2
@@ -590,10 +590,10 @@ function execute-ida-delete {
     # Catch output of curl execution and report fatal error if curl fails...
 
     if [ "$IDA_DEBUG" = "true" ]; then
-        echo "curl $IDA_CURL_OPS $IDA_NETRC -X DELETE -K- \"${IDA_HOST}${IDA_WEBDAV}/${IDA_STAGING_FOLDER}/${ENCODED_PATHNAME}\" 2>&1 <<< \"$IDA_VERBOSE_CREDENTIALS\""
+        echo "curl $IDA_CURL_OPS $IDA_NETRC --globoff -X DELETE -K- \"${IDA_HOST}${IDA_WEBDAV}/${IDA_STAGING_FOLDER}/${ENCODED_PATHNAME}\" 2>&1 <<< \"$IDA_VERBOSE_CREDENTIALS\""
     fi
 
-    OUT=`curl $IDA_CURL_OPS $IDA_NETRC -X DELETE -K- "${IDA_HOST}${IDA_WEBDAV}/${IDA_STAGING_FOLDER}/${ENCODED_PATHNAME}" 2>&1 <<< "$IDA_STDIN_CREDENTIALS"`
+    OUT=`curl $IDA_CURL_OPS $IDA_NETRC --globoff -X DELETE -K- "${IDA_HOST}${IDA_WEBDAV}/${IDA_STAGING_FOLDER}/${ENCODED_PATHNAME}" 2>&1 <<< "$IDA_STDIN_CREDENTIALS"`
 
     if [ "$OUT" != "" ]; then
         echo "Error: service request failed with the following output:" >&2
@@ -638,14 +638,14 @@ function execute-ida-download {
         fi
 
         if [ "$IDA_DEBUG" = "true" ]; then
-            echo "curl $IDA_CURL_OPS $IDA_NETRC -K- -o \"$LOCAL_PATHNAME\" \"${IDA_HOST}${IDA_WEBDAV}/${IDA_TARGET_FOLDER}/${ENCODED_PATHNAME}\" <<< \"$IDA_VERBOSE_CREDENTIALS\""
+            echo "curl $IDA_CURL_OPS $IDA_NETRC --globoff -K- -o \"$LOCAL_PATHNAME\" \"${IDA_HOST}${IDA_WEBDAV}/${IDA_TARGET_FOLDER}/${ENCODED_PATHNAME}\" <<< \"$IDA_VERBOSE_CREDENTIALS\""
         fi
 
         if [ "$IDA_EXECUTE_ACTION" = "true" ]; then
 
             # Catch output of curl execution and report fatal error if curl fails...
 
-            OUT=`curl $IDA_CURL_OPS $IDA_NETRC -K- -o "$LOCAL_PATHNAME" "${IDA_HOST}${IDA_WEBDAV}/${IDA_TARGET_FOLDER}/${ENCODED_PATHNAME}" 2>&1 <<< "$IDA_STDIN_CREDENTIALS"`
+            OUT=`curl $IDA_CURL_OPS $IDA_NETRC --globoff -K- -o "$LOCAL_PATHNAME" "${IDA_HOST}${IDA_WEBDAV}/${IDA_TARGET_FOLDER}/${ENCODED_PATHNAME}" 2>&1 <<< "$IDA_STDIN_CREDENTIALS"`
 
             if [ "$OUT" != "" ]; then
                 echo "Error: service request failed with the following output:" >&2
@@ -671,14 +671,14 @@ function execute-ida-download {
         fi
 
         if [ "$IDA_DEBUG" = "true" ]; then
-            echo "curl -s -k -S -L --header \"Accept: application/zip\" $IDA_NETRC -K- -o \"$LOCAL_PATHNAME\" \"${IDA_HOST}/index.php/apps/files/ajax/download.php?dir=/${IDA_TARGET_FOLDER}/${ENCODED_PATHNAME}\" <<< \"$IDA_VERBOSE_CREDENTIALS\""
+            echo "curl -s -k -S -L --globoff --header \"Accept: application/zip\" $IDA_NETRC -K- -o \"$LOCAL_PATHNAME\" \"${IDA_HOST}/index.php/apps/files/ajax/download.php?dir=/${IDA_TARGET_FOLDER}/${ENCODED_PATHNAME}\" <<< \"$IDA_VERBOSE_CREDENTIALS\""
         fi
 
         if [ "$IDA_EXECUTE_ACTION" = "true" ]; then
 
             # Catch output of curl execution and report fatal error if curl fails...
 
-            OUT=`curl -s -k -S -L --header "Accept: application/zip" $IDA_NETRC -K- -o "$LOCAL_PATHNAME" "${IDA_HOST}/index.php/apps/files/ajax/download.php?dir=/${IDA_TARGET_FOLDER}/${ENCODED_PATHNAME}" 2>&1 <<< "$IDA_STDIN_CREDENTIALS"`
+            OUT=`curl -s -k -S -L --globoff --header "Accept: application/zip" $IDA_NETRC -K- -o "$LOCAL_PATHNAME" "${IDA_HOST}/index.php/apps/files/ajax/download.php?dir=/${IDA_TARGET_FOLDER}/${ENCODED_PATHNAME}" 2>&1 <<< "$IDA_STDIN_CREDENTIALS"`
 
             if [ "$OUT" != "" ]; then
                 echo "Error: service request failed with the following output:" >&2
@@ -709,10 +709,10 @@ function execute-ida-info {
     # Catch output of curl execution and report fatal error if curl fails...
 
     if [ "$IDA_DEBUG" = "true" ]; then
-        echo "curl $IDA_CURL_OPS $IDA_NETRC -X PROPFIND -K- \"${IDA_HOST}${IDA_WEBDAV}/${IDA_TARGET_FOLDER}/${ENCODED_PATHNAME}\" 2>&1 <<< \"$IDA_VERBOSE_CREDENTIALS\""
+        echo "curl $IDA_CURL_OPS $IDA_NETRC --globoff -X PROPFIND -K- \"${IDA_HOST}${IDA_WEBDAV}/${IDA_TARGET_FOLDER}/${ENCODED_PATHNAME}\" 2>&1 <<< \"$IDA_VERBOSE_CREDENTIALS\""
     fi
 
-    OUT=`curl $IDA_CURL_OPS $IDA_NETRC -X PROPFIND -K- "${IDA_HOST}${IDA_WEBDAV}/${IDA_TARGET_FOLDER}/${ENCODED_PATHNAME}" 2>&1 <<< "$IDA_STDIN_CREDENTIALS"`
+    OUT=`curl $IDA_CURL_OPS $IDA_NETRC --globoff -X PROPFIND -K- "${IDA_HOST}${IDA_WEBDAV}/${IDA_TARGET_FOLDER}/${ENCODED_PATHNAME}" 2>&1 <<< "$IDA_STDIN_CREDENTIALS"`
 
     ERROR=`echo "$OUT" | grep '<d:response>'`
 
@@ -759,10 +759,10 @@ function execute-ida-info {
         if [ "$IDA_FROZEN" = "true" ]; then
 
             if [ "$IDA_DEBUG" = "true" ]; then
-                echo "curl $IDA_CURL_OPS $IDA_NETRC -K- \"${IDA_HOST}${IDA_API}/files/byProjectPathname/${IDA_PROJECT}?pathname=/${ENCODED_PATHNAME}\" 2>&1 <<< \"$IDA_VERBOSE_CREDENTIALS\""
+                echo "curl $IDA_CURL_OPS $IDA_NETRC --globoff -K- \"${IDA_HOST}${IDA_API}/files/byProjectPathname/${IDA_PROJECT}?pathname=/${ENCODED_PATHNAME}\" 2>&1 <<< \"$IDA_VERBOSE_CREDENTIALS\""
             fi
 
-            OUT=`curl $IDA_CURL_OPS $IDA_NETRC -K- "${IDA_HOST}${IDA_API}/files/byProjectPathname/${IDA_PROJECT}?pathname=/${ENCODED_PATHNAME}" 2>&1 <<< "$IDA_STDIN_CREDENTIALS"`
+            OUT=`curl $IDA_CURL_OPS $IDA_NETRC --globoff -K- "${IDA_HOST}${IDA_API}/files/byProjectPathname/${IDA_PROJECT}?pathname=/${ENCODED_PATHNAME}" 2>&1 <<< "$IDA_STDIN_CREDENTIALS"`
 
             ERROR=`echo "$OUT" | grep '"pid":'`
 
@@ -1286,10 +1286,10 @@ if [ "$IDA_VERBOSE" = "true" ]; then
 fi
 
 if [ "$IDA_DEBUG" = "true" ]; then
-    echo "curl $IDA_CURL_OPS $IDA_NETRC -I -K- \"${IDA_HOST}${IDA_WEBDAV}/${IDA_STAGING_FOLDER}\" 2>&1 <<< \"$IDA_STDIN_CREDENTIALS\""
+    echo "curl $IDA_CURL_OPS $IDA_NETRC --globoff -I -K- \"${IDA_HOST}${IDA_WEBDAV}/${IDA_STAGING_FOLDER}\" 2>&1 <<< \"$IDA_STDIN_CREDENTIALS\""
 fi
 
-SERVICE_QUERY=`curl $IDA_CURL_OPS $IDA_NETRC -I -K- "${IDA_HOST}${IDA_WEBDAV}/${IDA_STAGING_FOLDER}" 2>&1 <<< "$IDA_STDIN_CREDENTIALS" | grep "HTTP/1.1 "`
+SERVICE_QUERY=`curl $IDA_CURL_OPS $IDA_NETRC --globoff -I -K- "${IDA_HOST}${IDA_WEBDAV}/${IDA_STAGING_FOLDER}" 2>&1 <<< "$IDA_STDIN_CREDENTIALS" | grep "HTTP/1.1 "`
 
 SERVICE_UNAVAILABLE=`echo "$SERVICE_QUERY" | grep "HTTP/1.1 503"`
 
