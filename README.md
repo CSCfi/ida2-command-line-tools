@@ -91,10 +91,10 @@ settings defined at each subsequent level of specification.
 
 ### Project
 
-You may define the name of your project using the `IDA_PROJECT` environment variable.
+You may define your project using the `IDA_PROJECT` environment variable, specifying the CSC project number.
 
-    IDA_PROJECT="myproject"
-    
+    IDA_PROJECT="2100123"
+
 You may also specify the project using the `-p` command line option.
 
 If you belong to more than one project, you can define 
