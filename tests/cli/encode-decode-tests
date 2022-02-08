@@ -1,0 +1,93 @@
+#!/bin/bash
+#--------------------------------------------------------------------------------
+# This file is part of the IDA research data storage service
+#
+# Copyright (C) 2019 Ministry of Education and Culture, Finland
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Affero General Public License as published
+# by the Free Software Foundation, either version 3 of the License,
+# or (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
+# or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Affero General Public
+# License for more details.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+#
+# @author CSC - IT Center for Science Ltd., Espoo Finland <servicedesk@csc.fi>
+# @license GNU Affero General Public License, version 3
+# @link https://research.csc.fi/
+#--------------------------------------------------------------------------------
+# This script tests the methodologies used to urlencode and urldecode special
+# characters as employed by the ida CLI script. Encoding is more selective than
+# decoding. These tests are not run as part of the normal test suite.
+#--------------------------------------------------------------------------------
+
+ENCODING_INPUT=$'% +<>#{}|\^~[]\'`;?:@=&$!*'
+ENCODING_OUTPUT='%25%20%2b%3c%3e%23%7b%7d%7c%5c%5e%7e%5b%5d%27%60%3b%3f%3a%40%3d%26%24%21%2a'
+
+# Handle also backslash escaped dollar signs '\$'
+DECODING_INPUT='%25%20%2b%3c%3e%23%7b%7d%7c%5c%5e%7e%5b%5d%27%60%3b%3f%3a%40%3d%26%24%21%2a\$'
+DECODING_OUTPUT=$'% +<>#{}|\^~[]\'`;?:@=&$!*$'
+
+# TODO Figure out why the extended test data with accented characters gets output as '?' yet
+# script works fine when decoding same characters.
+#DECODING_INPUT='%25%20%2b%3c%3e%23%7b%7d%7c%5c%5e%7e%5b%5d%27%60%3b%3f%3a%40%3d%26%24%21%2a%c0%c1%c2%c3%c4%c5%c6%c7%c8%c9%ca%cb%cc%cd%ce%cf%d0%d1%d2%d3%d4%d5%d6%d7%d8%d9%da%db%dc%dd%de%df%e0%e1%e2%e3%e4%e5%e6%e7%e8%e9%ea%eb%ec%ed%ee%ef%f0%f1%f2%f3%f4%f5%f6%f7%f8%f9%fa%fb%fc%fd%fe%ff\$'
+#DECODING_OUTPUT=$'% +<>#{}|\^~[]\'`;?:@=&$!*ÀÁÂÃÄÅÆÇÈÉÊËÌÍÎÏÐÑÒÓÔÕÖ×ØÙÚÛÜÝÞßàáâãäåæçèéêëìíîïðñòóôõö÷øùúûüýþÿ$'
+
+echo "Testing encoding..."
+echo "Input:    $ENCODING_INPUT"
+echo "Expected: $ENCODING_OUTPUT"
+
+RESULTS=`echo "$ENCODING_INPUT" | \
+         sed -e  's:\%:%25:g' \
+             -e  's: :%20:g' \
+             -e  's:\\+:%2b:g' \
+             -e  's:<:%3c:g' \
+             -e  's:>:%3e:g' \
+             -e  's:\#:%23:g' \
+             -e  's:{:%7b:g' \
+             -e  's:}:%7d:g' \
+             -e  's:|:%7c:g' \
+             -e  's:\\\\:%5c:g' \
+             -e  's:\\^:%5e:g' \
+             -e  's:~:%7e:g' \
+             -e  's:\\[:%5b:g' \
+             -e  's:\\]:%5d:g' \
+             -e $'s:\':%27:g' \
+             -e  's:\`:%60:g' \
+             -e  's:;:%3b:g' \
+             -e  's:\\?:%3f:g' \
+             -e  's/:/%3a/g' \
+             -e  's:@:%40:g' \
+             -e  's:=:%3d:g' \
+             -e  's:\\&:%26:g' \
+             -e  's:\\$:%24:g' \
+             -e  's:\\!:%21:g' \
+             -e  's:\\*:%2a:g'`
+
+echo "Results:  $RESULTS"
+
+if [ "$RESULTS" != "$ENCODING_OUTPUT" ]; then
+    echo "FAIL"
+    exit 1
+fi
+
+echo "Testing decoding..."
+echo "Input:    $DECODING_INPUT"
+echo "Expected: $DECODING_OUTPUT"
+
+RESULTS=`echo "$DECODING_INPUT" | sed -e 's:\\\\\\$:$:g' | sed -e 's:\%:\\\\x:g' | xargs -0 printf "%b"`
+
+echo "Results:  $RESULTS"
+
+if [ "$RESULTS" != "$DECODING_OUTPUT" ]; then
+    echo "FAIL"
+    exit 1
+fi
+
+echo "OK"
+
