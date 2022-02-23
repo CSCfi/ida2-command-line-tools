@@ -52,26 +52,28 @@ class TestIdaCli(unittest.TestCase):
         print("=== tests/cli/test_cli")
 
     def setUp(self):
+
         self.config = load_configuration()
+
+        self.cli = "%s/ida" % self.config["IDA_CLI_ROOT"]
+        self.tempdir = "%s/tests/cli/tmp" % (self.config['IDA_CLI_ROOT'])
+        self.ignore_file = "-i %s/tests/cli/ida-ignore" % (self.config['IDA_CLI_ROOT'])
+        self.config_file = "%s/tests/cli/ida-config" % (self.config['IDA_CLI_ROOT'])
+        self.args = "-x -c %s" % (self.config_file)
+
         self.api = self.config["IDA_API_ROOT_URL"]
-        self.project_name = "test_project_a"
-        self.user_name = "test_user_a"
+        self.project_name = "test_project_cli"
+        self.user_name = "test_user_cli"
         self.pso_user_name = "%s%s" % (self.config['PROJECT_USER_PREFIX'], self.project_name)
         self.ida_project = "sudo -u %s %s/admin/ida_project" % (self.config['HTTPD_USER'], self.config['ROOT'])
         self.ida_user = "sudo -u %s %s/admin/ida_user" % (self.config['HTTPD_USER'], self.config['ROOT'])
         self.admin_user = (self.config['NC_ADMIN_USER'], self.config['NC_ADMIN_PASS'])
         self.pso_user = (self.pso_user_name, self.config['PROJECT_USER_PASS'])
         self.test_user = (self.user_name, self.config['TEST_USER_PASS'])
-        self.staging = "%s/%s/files/%s+" % (self.config['STORAGE_OC_DATA_ROOT'], self.pso_user_name, self.project_name)
-        self.frozen = "%s/%s/files/%s" % (self.config['STORAGE_OC_DATA_ROOT'], self.pso_user_name, self.project_name)
+        self.storage_root = self.config["STORAGE_OC_DATA_ROOT"]
+        self.staging = "%s/%s/files/%s+" % (self.storage_root, self.pso_user_name, self.project_name)
+        self.frozen = "%s/%s/files/%s" % (self.storage_root, self.pso_user_name, self.project_name)
         self.testdata = "%s/tests/testdata" % (self.config['ROOT'])
-        self.tempdir = "%s/tests/cli/tmp" % (self.config['ROOT'])
-        self.ignore_file = "-i %s/tests/cli/ida-ignore" % (self.config['ROOT'])
-        self.config_file = "%s/tests/cli/ida-config" % (self.config['ROOT'])
-        self.args = "-x -c %s" % (self.config_file)
-
-        # Define absolute path to the IDA CLI script
-        self.cli = "%s/ida" % self.config["IDA_CLI_ROOT"]
 
         # Ensure CLI script exists where specified
         path = Path(self.cli)
@@ -139,6 +141,15 @@ class TestIdaCli(unittest.TestCase):
             subprocess.call(cmd, shell=True, stdout=subprocess.PIPE)
 
             cmd = "%s DELETE %s" % (self.ida_user, self.user_name)
+            subprocess.call(cmd, shell=True, stdout=subprocess.PIPE)
+
+            cmd = "rm -fr %s/PSO_%s/*" % (self.storage_root, self.project_name)
+            subprocess.call(cmd, shell=True, stdout=subprocess.PIPE)
+
+            cmd = "rm -fr %s/PSO_%s" % (self.storage_root, self.project_name)
+            subprocess.call(cmd, shell=True, stdout=subprocess.PIPE)
+
+            cmd = "rm -fr %s/%s" % (self.storage_root, self.user_name)
             subprocess.call(cmd, shell=True, stdout=subprocess.PIPE)
 
         self.assertTrue(self.success)
@@ -399,7 +410,7 @@ class TestIdaCli(unittest.TestCase):
         self.assertTrue(path.is_file(), output)
 
         print("(freeze file)")
-        data = {"project": "test_project_a", "pathname": "/a/b/c/Contact.txt"}
+        data = {"project": self.project_name, "pathname": "/a/b/c/Contact.txt"}
         response = requests.post("%s/freeze" % self.api, json=data, auth=self.test_user, verify=False)
         self.assertEqual(response.status_code, 200)
         path = Path("%s/a/b/c/Contact.txt" % (self.frozen))
@@ -721,7 +732,7 @@ class TestIdaCli(unittest.TestCase):
         self.assertEquals(0, path.stat().st_size, output)
 
         print("(freeze folder)")
-        data = {"project": "test_project_a", "pathname": "/2017-11/Experiment_8"}
+        data = {"project": self.project_name, "pathname": "/2017-11/Experiment_8"}
         response = requests.post("%s/freeze" % self.api, json=data, auth=self.test_user, verify=False)
         self.assertEqual(response.status_code, 200)
         path = Path("%s/2017-11/Experiment_8" % (self.frozen))
@@ -853,7 +864,7 @@ class TestIdaCli(unittest.TestCase):
             output = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT).decode(sys.stdout.encoding)
         except subprocess.CalledProcessError as error:
             self.fail(error.output.decode(sys.stdout.encoding))
-        self.assertIn("project:    test_project_a", output)
+        self.assertIn("project:    %s" % self.project_name, output)
         self.assertIn("area:       staging", output)
         self.assertIn("type:       file", output)
         self.assertIn("pathname:   /2017-12/Experiment_1/baseline/test01.dat", output)
@@ -867,7 +878,7 @@ class TestIdaCli(unittest.TestCase):
             output = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT).decode(sys.stdout.encoding)
         except subprocess.CalledProcessError as error:
             self.fail(error.output.decode(sys.stdout.encoding))
-        self.assertIn("project:    test_project_a", output)
+        self.assertIn("project:    %s" % self.project_name, output)
         self.assertIn("area:       staging", output)
         self.assertIn("type:       folder", output)
         self.assertIn("pathname:   /2017-12/Experiment_1/baseline", output)
@@ -882,7 +893,7 @@ class TestIdaCli(unittest.TestCase):
         self.assertNotIn(":href>", output)
 
         print("(freeze folder)")
-        data = {"project": "test_project_a", "pathname": "/2017-12/Experiment_1/baseline"}
+        data = {"project": self.project_name, "pathname": "/2017-12/Experiment_1/baseline"}
         response = requests.post("%s/freeze" % self.api, json=data, auth=self.test_user, verify=False)
         self.assertEqual(response.status_code, 200)
         path = Path("%s/2017-12/Experiment_1/baseline" % (self.frozen))
@@ -896,7 +907,7 @@ class TestIdaCli(unittest.TestCase):
             output = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT).decode(sys.stdout.encoding)
         except subprocess.CalledProcessError as error:
             self.fail(error.output.decode(sys.stdout.encoding))
-        self.assertIn("project:    test_project_a", output)
+        self.assertIn("project:    %s" % self.project_name, output)
         self.assertIn("area:       frozen", output)
         self.assertIn("type:       file", output)
         self.assertIn("pathname:   /2017-12/Experiment_1/baseline/test01.dat", output)
@@ -912,7 +923,7 @@ class TestIdaCli(unittest.TestCase):
             output = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT).decode(sys.stdout.encoding)
         except subprocess.CalledProcessError as error:
             self.fail(error.output.decode(sys.stdout.encoding))
-        self.assertIn("project:    test_project_a", output)
+        self.assertIn("project:    %s" % self.project_name, output)
         self.assertIn("area:       frozen", output)
         self.assertIn("type:       folder", output)
         self.assertIn("pathname:   /2017-12/Experiment_1/baseline", output)

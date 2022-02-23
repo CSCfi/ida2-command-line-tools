@@ -54,7 +54,7 @@ def _load_module_from_file(module_name, file_path):
 
 
 def get_settings():
-    paths = {"server_configuration_path": "config/config.sh", "service_constants_path": "lib/constants.sh"}
+    paths = {"server_configuration_path": "/var/ida/config/config.sh", "service_constants_path": "/var/ida/lib/constants.sh"}
     return paths
 
 
@@ -71,6 +71,7 @@ def load_configuration():
         'ROOT':                   server_configuration.ROOT,
         'OCC':                    server_configuration.OCC,
         'IDA_API_ROOT_URL':       server_configuration.IDA_API_ROOT_URL,
+        'IDA_CLI_ROOT':           server_configuration.IDA_CLI_ROOT,
         'URL_BASE_SHARE':         server_configuration.URL_BASE_SHARE,
         'HTTPD_USER':             server_configuration.HTTPD_USER,
         'NC_ADMIN_USER':          server_configuration.NC_ADMIN_USER,
@@ -116,38 +117,4 @@ def load_configuration():
 
     return config
 
-
-def restart_rabbitmq_server():
-    """
-    Restart rabbitmq-consumer systemd service.
-    """
-    try:
-        subprocess.check_call("sudo service rabbitmq-server restart".split())
-        return True
-    except subprocess.CalledProcessError as e:
-        return False
-
-
-def start_agents():
-    """
-    Start postprocessing agents systemd service.
-    """
-    try:
-        subprocess.check_call("sudo systemctl start rabbitmq-metadata-agent".split())
-        subprocess.check_call("sudo systemctl start rabbitmq-replication-agent".split())
-        return True
-    except subprocess.CalledProcessError as e:
-        return False
-
-
-def stop_agents():
-    """
-    Stop postprocessing agents systemd service.
-    """
-    try:
-        subprocess.check_call("sudo systemctl stop rabbitmq-metadata-agent".split())
-        subprocess.check_call("sudo systemctl stop rabbitmq-replication-agent".split())
-        return True
-    except subprocess.CalledProcessError as e:
-        return False
 

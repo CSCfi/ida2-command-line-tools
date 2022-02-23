@@ -31,7 +31,7 @@
 #--------------------------------------------------------------------------------
 # Load service constants and configuration settings
 
-ROOT=`dirname "$(realpath $0)"`
+SCRIPT_ROOT=`dirname "$(realpath $0)"`
 
 CONSTANTS_FILE="/var/ida/lib/constants.sh"
 
@@ -82,7 +82,8 @@ source $VENV/bin/activate
 #--------------------------------------------------------------------------------
 # Execute tests per the provided command line arguments
 
-cd $ROOT
+cd $SCRIPT_ROOT
+cd ..
 
 python -W ignore -m unittest discover -f -q tests.cli
 

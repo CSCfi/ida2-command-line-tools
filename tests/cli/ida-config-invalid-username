@@ -1,4 +1,4 @@
 IDA_HOST="https://localhost"
-IDA_PROJECT="test_project_a"
+IDA_PROJECT="test_project_cli"
 IDA_USERNAME="invalid_username"
 IDA_PASSWORD="test"
