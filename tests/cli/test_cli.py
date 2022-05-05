@@ -56,31 +56,31 @@ class TestIdaCli(unittest.TestCase):
         self.config = load_configuration()
 
         self.cli = "%s/ida" % self.config["IDA_CLI_ROOT"]
-        self.tempdir = "%s/tests/cli/tmp" % (self.config['IDA_CLI_ROOT'])
-        self.ignore_file = "-i %s/tests/cli/ida-ignore" % (self.config['IDA_CLI_ROOT'])
-        self.config_file = "%s/tests/cli/ida-config" % (self.config['IDA_CLI_ROOT'])
-        self.args = "-x -c %s" % (self.config_file)
+        self.tempdir = "%s/tests/cli/tmp" % (self.config["IDA_CLI_ROOT"])
+        self.ignore_file = "-i %s/tests/cli/ida-ignore" % (self.config["IDA_CLI_ROOT"])
+        self.config_file = "%s/ida-config" % self.tempdir
+        self.args = "-x -c %s" % self.config_file
 
         self.api = self.config["IDA_API_ROOT_URL"]
         self.project_name = "test_project_cli"
         self.user_name = "test_user_cli"
-        self.pso_user_name = "%s%s" % (self.config['PROJECT_USER_PREFIX'], self.project_name)
-        self.ida_project = "sudo -u %s %s/admin/ida_project" % (self.config['HTTPD_USER'], self.config['ROOT'])
-        self.ida_user = "sudo -u %s %s/admin/ida_user" % (self.config['HTTPD_USER'], self.config['ROOT'])
-        self.admin_user = (self.config['NC_ADMIN_USER'], self.config['NC_ADMIN_PASS'])
-        self.pso_user = (self.pso_user_name, self.config['PROJECT_USER_PASS'])
-        self.test_user = (self.user_name, self.config['TEST_USER_PASS'])
+        self.pso_user_name = "%s%s" % (self.config["PROJECT_USER_PREFIX"], self.project_name)
+        self.ida_project = "sudo -u %s %s/admin/ida_project" % (self.config["HTTPD_USER"], self.config["ROOT"])
+        self.ida_user = "sudo -u %s %s/admin/ida_user" % (self.config["HTTPD_USER"], self.config["ROOT"])
+        self.admin_user = (self.config["NC_ADMIN_USER"], self.config["NC_ADMIN_PASS"])
+        self.pso_user = (self.pso_user_name, self.config["PROJECT_USER_PASS"])
+        self.test_user = (self.user_name, self.config["TEST_USER_PASS"])
         self.storage_root = self.config["STORAGE_OC_DATA_ROOT"]
         self.staging = "%s/%s/files/%s+" % (self.storage_root, self.pso_user_name, self.project_name)
         self.frozen = "%s/%s/files/%s" % (self.storage_root, self.pso_user_name, self.project_name)
-        self.testdata = "%s/tests/testdata" % (self.config['ROOT'])
+        self.testdata = "%s/tests/testdata" % (self.config["ROOT"])
 
         # Ensure CLI script exists where specified
         path = Path(self.cli)
         self.assertTrue(path.is_file())
 
         # Prefix IDA CLI script pathname with test user password from configuration
-        self.cli = "IDA_PASSWORD=\"%s\" %s" % (self.config['TEST_USER_PASS'], self.cli)
+        self.cli = "IDA_PASSWORD=\"%s\" %s" % (self.config["TEST_USER_PASS"], self.cli)
 
         # Ensure test data root exists where specified and is directory
         path = Path(self.testdata)
@@ -88,11 +88,11 @@ class TestIdaCli(unittest.TestCase):
 
         # Clear any residual accounts, if they exist from a prior run
         self.success = True
-        noflush = self.config.get('NO_FLUSH_AFTER_TESTS', 'false')
-        self.config['NO_FLUSH_AFTER_TESTS'] = 'false'
+        noflush = self.config.get("NO_FLUSH_AFTER_TESTS", "false")
+        self.config["NO_FLUSH_AFTER_TESTS"] = "false"
         self.tearDown()
         self.success = False
-        self.config['NO_FLUSH_AFTER_TESTS'] = noflush
+        self.config["NO_FLUSH_AFTER_TESTS"] = noflush
 
         print("(initializing)")
 
@@ -101,6 +101,26 @@ class TestIdaCli(unittest.TestCase):
         if path.exists():
             shutil.rmtree(self.tempdir, ignore_errors=True)
         path.mkdir()
+
+        # Build test ida-config files based on /var/ida/config/config.sh definitions
+        f = open("%s/ida-config" % self.tempdir, "w")
+        f.write("IDA_HOST=\"https://localhost\"\n")
+        f.write("IDA_PROJECT=\"test_project_cli\"\n")
+        f.write("IDA_USERNAME=\"test_user_cli\"\n")
+        f.write("IDA_PASSWORD=\"%s\"\n" % self.config["TEST_USER_PASS"])
+        f.close()
+        f = open("%s/ida-config-invalid-username" % self.tempdir, "w")
+        f.write("IDA_HOST=\"https://localhost\"\n")
+        f.write("IDA_PROJECT=\"test_project_cli\"\n")
+        f.write("IDA_USERNAME=\"invalid\"\n")
+        f.write("IDA_PASSWORD=\"%s\"\n" % self.config["TEST_USER_PASS"])
+        f.close()
+        f = open("%s/ida-config-invalid-password" % self.tempdir, "w")
+        f.write("IDA_HOST=\"https://localhost\"\n")
+        f.write("IDA_PROJECT=\"test_project_cli\"\n")
+        f.write("IDA_USERNAME=\"test_user_cli\"\n")
+        f.write("IDA_PASSWORD=\"invalid\"\n")
+        f.close()
 
         # Create test project
         cmd = "%s ADD %s 1" % (self.ida_project, self.project_name)
@@ -128,7 +148,7 @@ class TestIdaCli(unittest.TestCase):
         # Flush all test projects, user accounts, and data, but only if all tests passed,
         # else leave projects and data as-is so test project state can be inspected
 
-        if self.success and self.config.get('NO_FLUSH_AFTER_TESTS', 'false') == 'false':
+        if self.success and self.config.get("NO_FLUSH_AFTER_TESTS", "false") == "false":
 
             print("(cleaning)")
 
@@ -191,7 +211,7 @@ class TestIdaCli(unittest.TestCase):
 
 
         print("Attempt to upload file to non-existent service")
-        cmd = "%s upload %s -t 'http://no.such.service' /Contact.txt %s/Contact.txt" % (self.cli, self.args, self.testdata)
+        cmd = "%s upload %s -t \"http://no.such.service\" /Contact.txt %s/Contact.txt" % (self.cli, self.args, self.testdata)
         failed = False
         try:
             output = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT).decode(sys.stdout.encoding)
