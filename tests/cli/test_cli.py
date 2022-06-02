@@ -39,6 +39,7 @@ import unittest
 import subprocess
 import os
 import sys
+import socket
 import shutil
 
 from pathlib import Path
@@ -54,6 +55,8 @@ class TestIdaCli(unittest.TestCase):
     def setUp(self):
 
         self.config = load_configuration()
+
+        self.hostname = socket.gethostname()
 
         self.cli = "%s/ida" % self.config["IDA_CLI_ROOT"]
         self.tempdir = "%s/tests/cli/tmp" % (self.config["IDA_CLI_ROOT"])
@@ -104,19 +107,19 @@ class TestIdaCli(unittest.TestCase):
 
         # Build test ida-config files based on /var/ida/config/config.sh definitions
         f = open("%s/ida-config" % self.tempdir, "w")
-        f.write("IDA_HOST=\"https://localhost\"\n")
+        f.write("IDA_HOST=\"https://%s\"\n" % self.hostname)
         f.write("IDA_PROJECT=\"test_project_cli\"\n")
         f.write("IDA_USERNAME=\"test_user_cli\"\n")
         f.write("IDA_PASSWORD=\"%s\"\n" % self.config["TEST_USER_PASS"])
         f.close()
         f = open("%s/ida-config-invalid-username" % self.tempdir, "w")
-        f.write("IDA_HOST=\"https://localhost\"\n")
+        f.write("IDA_HOST=\"https://%s\"\n" % self.hostname)
         f.write("IDA_PROJECT=\"test_project_cli\"\n")
         f.write("IDA_USERNAME=\"invalid\"\n")
         f.write("IDA_PASSWORD=\"%s\"\n" % self.config["TEST_USER_PASS"])
         f.close()
         f = open("%s/ida-config-invalid-password" % self.tempdir, "w")
-        f.write("IDA_HOST=\"https://localhost\"\n")
+        f.write("IDA_HOST=\"https://%s\"\n" % self.hostname)
         f.write("IDA_PROJECT=\"test_project_cli\"\n")
         f.write("IDA_USERNAME=\"test_user_cli\"\n")
         f.write("IDA_PASSWORD=\"invalid\"\n")
