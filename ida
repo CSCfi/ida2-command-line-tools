@@ -22,7 +22,7 @@
 # @link https://research.csc.fi/
 #--------------------------------------------------------------------------------
 
-RELEASE_CHECKSUM="44339923ad2b14d6bc939c265dbf1b4d4e3085063493433641b05989f7bfe332"
+RELEASE_CHECKSUM="73f50f5f8a11349501a93e740643d344a2d396d01061514e75da436696aa685a"
 
 IDA_BETA_SCRIPT="false"
 
@@ -130,7 +130,7 @@ IDA_API="/apps/ida/api"
 IDA_STAGING_SUFFIX="%2b"
 IDA_CONFIG_FILE="$HOME/.ida-config"
 IDA_IGNORE_FILE="$HOME/.ida-ignore"
-IDA_CURL_OPS="-s -S -k -L"
+IDA_CURL_OPS="-s -S -L"
 IDA_EXECUTE_ACTION="true"
 IDA_NETRC=""
 IDA_FROZEN="false"
@@ -671,14 +671,14 @@ function execute-ida-download {
         fi
 
         if [ "$IDA_DEBUG" = "true" ]; then
-            echo "curl -s -k -S -L --globoff --header \"Accept: application/zip\" $IDA_NETRC -K- -o \"$LOCAL_PATHNAME\" \"${IDA_HOST}/index.php/apps/files/ajax/download.php?dir=/${IDA_TARGET_FOLDER}/${ENCODED_PATHNAME}\" <<< \"$IDA_VERBOSE_CREDENTIALS\""
+            echo "curl $IDA_CURL_OPS --globoff --header \"Accept: application/zip\" $IDA_NETRC -K- -o \"$LOCAL_PATHNAME\" \"${IDA_HOST}/index.php/apps/files/ajax/download.php?dir=/${IDA_TARGET_FOLDER}/${ENCODED_PATHNAME}\" <<< \"$IDA_VERBOSE_CREDENTIALS\""
         fi
 
         if [ "$IDA_EXECUTE_ACTION" = "true" ]; then
 
             # Catch output of curl execution and report fatal error if curl fails...
 
-            OUT=`curl -s -k -S -L --globoff --header "Accept: application/zip" $IDA_NETRC -K- -o "$LOCAL_PATHNAME" "${IDA_HOST}/index.php/apps/files/ajax/download.php?dir=/${IDA_TARGET_FOLDER}/${ENCODED_PATHNAME}" 2>&1 <<< "$IDA_STDIN_CREDENTIALS"`
+            OUT=`curl $IDA_CURL_OPS --globoff --header "Accept: application/zip" $IDA_NETRC -K- -o "$LOCAL_PATHNAME" "${IDA_HOST}/index.php/apps/files/ajax/download.php?dir=/${IDA_TARGET_FOLDER}/${ENCODED_PATHNAME}" 2>&1 <<< "$IDA_STDIN_CREDENTIALS"`
 
             if [ "$OUT" != "" ]; then
                 echo "Error: service request failed with the following output:" >&2
