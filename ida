@@ -22,7 +22,7 @@
 # @link https://research.csc.fi/
 #--------------------------------------------------------------------------------
 
-RELEASE_CHECKSUM="73f50f5f8a11349501a93e740643d344a2d396d01061514e75da436696aa685a"
+RELEASE_CHECKSUM="b6e60d8811c62b8122d8e6fd915e73aedde6d75f60bc1fea41845644baf9faf0"
 
 IDA_BETA_SCRIPT="false"
 
@@ -89,16 +89,19 @@ Usage: ida [-h]
 
        move can also be used to rename a file or folder without changing its location.
 
-       Configuration settings will be taken from existing environment variables, followed by \$HOME/.ida-config,
+       Configuration settings will be taken from existing environment variables, followed by '\$HOME/.ida-config',
        followed by a configuration file specified with the -c option, followed by any other specified command
        line options.
 
        Username and password may be defined using netrc (https://ec.haxx.se/usingcurl-netrc.html).
 
-       An optional file containing filename patterns to exclude from upload can be defined as \$HOME/.ida-ignore
+       An optional file containing filename patterns to exclude from upload can be defined as '\$HOME/.ida-ignore'
        or specified with the -i option. The file should contain one pattern per line, and will be applied only
        to filenames, not to pathnames or portions of pathnames. Patterns should be compatible with those understood
        by the -name option of the POSIX find command.
+
+       This script utilizes a curl cookie jar stored as '\$HOME/.ida-cookie-jar'. If you encounter authentication
+       errors, try deleting the cookie jar file to clear any expired session cookies.
 
        Note that files are not officially stored persistently in the IDA service until they are frozen, which can
        only be done using the web UI of the service (https://www.fairdata.fi/en/ida/user-guide/#project-data-storage).
@@ -130,7 +133,8 @@ IDA_API="/apps/ida/api"
 IDA_STAGING_SUFFIX="%2b"
 IDA_CONFIG_FILE="$HOME/.ida-config"
 IDA_IGNORE_FILE="$HOME/.ida-ignore"
-IDA_CURL_OPS="-s -S -L"
+IDA_COOKIE_JAR="$HOME/.ida-cookie-jar"
+IDA_CURL_OPS="-s -S -L -b $IDA_COOKIE_JAR -c $IDA_COOKIE_JAR"
 IDA_EXECUTE_ACTION="true"
 IDA_NETRC=""
 IDA_FROZEN="false"
@@ -179,6 +183,14 @@ function urlEncode () {
     echo "${RESULT}"
 }
 
+function checkLength {
+    PATHNAME_LENGTH=`echo "${1}" | wc -c`
+    if [ "$PATHNAME_LENGTH" -gt 200 ]; then
+        echo "Error: URL encoded pathname exceeds maximum allowed length of 200 characters: ${1}" >&2
+        exit 1
+    fi
+}
+
 function checkScope {
 
     if [ "$IDA_DEBUG" = "true" ]; then
@@ -186,23 +198,22 @@ function checkScope {
     fi
 
     if [ "$IDA_DEBUG" = "true" ]; then
-        echo "curl $IDA_CURL_OPS $IDA_NETRC --globoff -X POST -K- -o /dev/null -w \"%{http_code}\"
-\"${IDA_HOST}${IDA_API}/checkScope?project=${IDA_PROJECT}&pathname=${1}\" 2>&1 <<< \"$IDA_VERBOSE_CREDENTIALS\" " >&2
+        echo "curl $IDA_CURL_OPS $IDA_NETRC --globoff -X POST -K- -o /dev/null -w \"%{http_code}\" \"${IDA_HOST}${IDA_API}/checkScope?project=${IDA_PROJECT}&pathname=${1}\" <<< \"$IDA_VERBOSE_CREDENTIALS\" " >&2
     fi
 
-    RESPONSE=`curl $IDA_CURL_OPS $IDA_NETRC --globoff -X POST -K- -o /dev/null -w "%{http_code}" "${IDA_HOST}${IDA_API}/checkScope?project=${IDA_PROJECT}&pathname=${1}" 2>&1 <<< "$IDA_STDIN_CREDENTIALS" `
+    RESPONSE=`curl $IDA_CURL_OPS $IDA_NETRC --globoff -X POST -K- -o /dev/null -w "%{http_code}" "${IDA_HOST}${IDA_API}/checkScope?project=${IDA_PROJECT}&pathname=${1}" <<< "$IDA_STDIN_CREDENTIALS" `
 
     if [ "$IDA_DEBUG" = "true" ]; then
         echo "Response: ${RESPONSE}" >&2
     fi
 
-    if [ "$RESPONSE" = "500" ]; then
-        echo "Error: Service request failed." >&2
+    if [ "$RESPONSE" = "409" ]; then
+        echo "Error: Specified target conflicts with an ongoing action." >&2
         exit 1
     fi
 
-    if [ "$RESPONSE" = "409" ]; then
-        echo "Error: Specified target conflicts with an ongoing action." >&2
+    if [[ ${RESPONSE::1} != "2" ]]; then
+        echo "Error: POST request failed for '/checkScope?project=${IDA_PROJECT}&pathname=${1}': ${RESPONSE}" >&2
         exit 1
     fi
 }
@@ -214,13 +225,18 @@ function verifyTargetExists {
     fi
 
     if [ "$IDA_DEBUG" = "true" ]; then
-        echo "curl $IDA_CURL_OPS $IDA_NETRC --globoff -I -K- \"${IDA_HOST}${IDA_WEBDAV}/${IDA_TARGET_FOLDER}/${1}\" 2>&1 <<< \"$IDA_VERBOSE_CREDENTIALS\" | grep \"HTTP/1.1 404 Not Found\"" >&2
+        echo "curl $IDA_CURL_OPS $IDA_NETRC --globoff -I -K- -o /dev/null -w \"%{http_code}\" ${IDA_HOST}${IDA_WEBDAV}/${IDA_TARGET_FOLDER}/${1}\" <<< \"$IDA_VERBOSE_CREDENTIALS\"" >&2
     fi
 
-    NOT_FOUND=`curl $IDA_CURL_OPS $IDA_NETRC --globoff -I -K- "${IDA_HOST}${IDA_WEBDAV}/${IDA_TARGET_FOLDER}/${1}" 2>&1 <<< "$IDA_STDIN_CREDENTIALS" | grep "HTTP/1.1 404 Not Found"`
+    RESPONSE=`curl $IDA_CURL_OPS $IDA_NETRC --globoff -I -K- -o /dev/null -w "%{http_code}" "${IDA_HOST}${IDA_WEBDAV}/${IDA_TARGET_FOLDER}/${1}" <<< "$IDA_STDIN_CREDENTIALS"`
 
-    if [ "$NOT_FOUND" ]; then
+    if [ "$RESPONSE" = "404" ]; then
         echo "Error: Specified target not found." >&2
+        exit 1
+    fi
+
+    if [[ ${RESPONSE::1} != "2" ]]; then
+        echo "Error: INFO request failed for '/${IDA_TARGET_FOLDER}/${1}': ${RESPONSE}" >&2
         exit 1
     fi
 }
@@ -232,13 +248,16 @@ function verifyNewTargetDoesNotExist {
     fi
 
     if [ "$IDA_DEBUG" = "true" ]; then
-        echo "curl $IDA_CURL_OPS $IDA_NETRC --globoff -I -K- \"${IDA_HOST}${IDA_WEBDAV}/${IDA_STAGING_FOLDER}/${1}\" 2>&1 <<< \"$IDA_VERBOSE_CREDENTIALS\" | grep \"HTTP/1.1 200 OK\"" >&2
+        echo "curl $IDA_CURL_OPS $IDA_NETRC --globoff -I -K- -o /dev/null -w \"%{http_code}\" ${IDA_HOST}${IDA_WEBDAV}/${IDA_STAGING_FOLDER}/${1}\" <<< \"$IDA_VERBOSE_CREDENTIALS\"" >&2
     fi
 
-    FOUND=`curl $IDA_CURL_OPS $IDA_NETRC --globoff -I -K- "${IDA_HOST}${IDA_WEBDAV}/${IDA_STAGING_FOLDER}/${1}" 2>&1 <<< "$IDA_STDIN_CREDENTIALS" | grep "HTTP/1.1 200 OK"`
+    RESPONSE=`curl $IDA_CURL_OPS $IDA_NETRC --globoff -I -K- -o /dev/null -w "%{http_code}" "${IDA_HOST}${IDA_WEBDAV}/${IDA_STAGING_FOLDER}/${1}" <<< "$IDA_STDIN_CREDENTIALS"`
 
-    if [ "$FOUND" ]; then
+    if [[ ${RESPONSE::1} = "2" ]]; then
         echo "Error: Specified new target already exists." >&2
+        exit 1
+    elif [ "$RESPONSE" != "404" ]; then
+        echo "Error: INFO request failed for '/${IDA_STAGING_FOLDER}/${1}': ${RESPONSE}" >&2
         exit 1
     fi
 }
@@ -309,6 +328,10 @@ function ensureAncestorFoldersExist {
 
         ANCESTOR_ENCODED_PATHNAME=$(urlEncode "${ANCESTOR_FOLDER_PATHNAME}")
 
+        # Verify pathname does not exceed length limit
+
+        checkLength "$ANCESTOR_ENCODED_PATHNAME"
+
         # Verify new target pathname does not conflict with ongoing action
 
         checkScope "$ANCESTOR_ENCODED_PATHNAME"
@@ -343,7 +366,11 @@ function execute-ida-upload {
 
     ENCODED_PATHNAME=$(urlEncode "${TARGET_PATHNAME}")
 
-    # Verify target pathname does not conflict with ongoing action
+    # Verify pathname does not exceed length limit
+
+    checkLength "$ENCODED_PATHNAME"
+
+    # Verify pathname does not conflict with ongoing action
 
     checkScope "$ENCODED_PATHNAME"
 
@@ -378,9 +405,7 @@ function execute-ida-upload {
         fi
 
         if [ "$IDA_EXECUTE_ACTION" = "true" ]; then
-
             # Ignore any failure (i.e. when folder already exists)
-
             curl $IDA_CURL_OPS $IDA_NETRC --globoff -X MKCOL -K- "${IDA_HOST}${IDA_WEBDAV}/${IDA_STAGING_FOLDER}/${ENCODED_PATHNAME}" >/dev/null <<< "$IDA_STDIN_CREDENTIALS"
         fi
 
@@ -405,6 +430,10 @@ function execute-ida-upload {
 
                 ENCODED_PATHNAME=$(urlEncode "${TARGET_PATHNAME}/${TARGET_DIRNAME}")
 
+                # Verify pathname does not exceed length limit
+
+                checkLength "$ENCODED_PATHNAME"
+
                 # Verify new target pathname does not conflict with ongoing action. We check before each operation in
                 # case another user initiates an action while a length upload is in progress...
 
@@ -415,9 +444,7 @@ function execute-ida-upload {
                 fi
 
                 if [ "$IDA_EXECUTE_ACTION" = "true" ]; then
-
                     # Ignore any failure (i.e. when folder already exists)
-
                     curl $IDA_CURL_OPS $IDA_NETRC --globoff -X MKCOL -K- "${IDA_HOST}${IDA_WEBDAV}/${IDA_STAGING_FOLDER}/${ENCODED_PATHNAME}" >/dev/null <<< "$IDA_STDIN_CREDENTIALS"
                 fi
             fi
@@ -440,24 +467,27 @@ function execute-ida-upload {
 
             ENCODED_PATHNAME=$(urlEncode "${TARGET_PATHNAME}/${TARGET_FILENAME}")
 
+            # Verify pathname does not exceed length limit
+
+            checkLength "$ENCODED_PATHNAME"
+
             # Verify new target pathname does not conflict with ongoing action. We check before each operation in
             # case another user initiates an action while a length upload is in progress...
 
             checkScope "$ENCODED_PATHNAME"
 
             if [ "$IDA_DEBUG" = "true" ]; then
-                echo "curl $IDA_CURL_OPS $IDA_NETRC --globoff -X PUT -K- -T \"$pathname\" \"${IDA_HOST}${IDA_WEBDAV}/${IDA_STAGING_FOLDER}/${ENCODED_PATHNAME}\" <<< \"$IDA_VERBOSE_CREDENTIALS\""
+                echo "curl $IDA_CURL_OPS $IDA_NETRC --globoff -X PUT -K- -o /dev/null -w \"%{http_code}\" -T \"$pathname\" \"${IDA_HOST}${IDA_WEBDAV}/${IDA_STAGING_FOLDER}/${ENCODED_PATHNAME}\" <<< \"$IDA_VERBOSE_CREDENTIALS\""
             fi
 
             if [ "$IDA_EXECUTE_ACTION" = "true" ]; then
 
-                # Catch output of curl execution and report fatal error if curl fails...
+                # Report fatal error if curl fails...
 
-                OUT=`curl $IDA_CURL_OPS $IDA_NETRC --globoff -X PUT -K- -T "$pathname" "${IDA_HOST}${IDA_WEBDAV}/${IDA_STAGING_FOLDER}/${ENCODED_PATHNAME}" 2>&1 <<< "$IDA_STDIN_CREDENTIALS"`
+                RESPONSE=`curl $IDA_CURL_OPS $IDA_NETRC --globoff -X PUT -K- -o /dev/null -w "%{http_code}" -T "$pathname" "${IDA_HOST}${IDA_WEBDAV}/${IDA_STAGING_FOLDER}/${ENCODED_PATHNAME}" <<< "$IDA_STDIN_CREDENTIALS"`
 
-                if [ "$OUT" != "" ]; then
-                    echo "Error: service request failed with the following output:" >&2
-                    echo "$OUT" >&2
+                if [[ ${RESPONSE::1} != "2" ]]; then
+                    echo "Error: PUT request failed for '/${IDA_STAGING_FOLDER}/${ENCODED_PATHNAME}': ${RESPONSE}" >&2
                     exit 1
                 fi
             fi
@@ -472,17 +502,18 @@ function execute-ida-upload {
         fi
 
         if [ "$IDA_DEBUG" = "true" ]; then
-            echo "curl $IDA_CURL_OPS $IDA_NETRC --globoff -X PUT -K- -T \"$LOCAL_PATHNAME\" \"${IDA_HOST}${IDA_WEBDAV}/${IDA_STAGING_FOLDER}/${ENCODED_PATHNAME}\" <<< \"$IDA_VERBOSE_CREDENTIALS\""
+            echo "curl $IDA_CURL_OPS $IDA_NETRC --globoff -X PUT -K- -o /dev/null -w "%{http_code}" -T \"$LOCAL_PATHNAME\" \"${IDA_HOST}${IDA_WEBDAV}/${IDA_STAGING_FOLDER}/${ENCODED_PATHNAME}\" <<< \"$IDA_VERBOSE_CREDENTIALS\""
         fi
 
         if [ "$IDA_EXECUTE_ACTION" = "true" ]; then
 
-            # Catch output of curl execution and report fatal error if curl fails...
+            # Report fatal error if curl fails...
 
-            OUT=`curl $IDA_CURL_OPS $IDA_NETRC --globoff -X PUT -K- -T "$LOCAL_PATHNAME" "${IDA_HOST}${IDA_WEBDAV}/${IDA_STAGING_FOLDER}/${ENCODED_PATHNAME}" 2>&1 <<< "$IDA_STDIN_CREDENTIALS"`
-            if [ "$OUT" != "" ]; then
-                echo "Error: service request failed with the following output:" >&2
-                echo "$OUT" >&2
+            RESPONSE=`curl $IDA_CURL_OPS $IDA_NETRC --globoff -X PUT -K- -o /dev/null -w "%{http_code}" -T "$LOCAL_PATHNAME" "${IDA_HOST}${IDA_WEBDAV}/${IDA_STAGING_FOLDER}/${ENCODED_PATHNAME}" <<< "$IDA_STDIN_CREDENTIALS"`
+
+            if [[ ${RESPONSE::1} != "2" ]]; then
+                echo "Error: PUT request failed for '/${IDA_STAGING_FOLDER}/${ENCODED_PATHNAME}': ${RESPONSE}" >&2
+                echo "$OUTPUT" >&2
                 exit 1
             fi
         fi
@@ -498,6 +529,11 @@ function execute-ida-move {
     ENCODED_PATHNAME=$(urlEncode "${TARGET_PATHNAME}")
     NEW_ENCODED_PATHNAME=$(urlEncode "${NEW_TARGET_PATHNAME}")
 
+    # Verify pathnames do not exceed length limit
+
+    checkLength "$ENCODED_PATHNAME"
+    checkLength "$NEW_ENCODED_PATHNAME"
+
     # Verify neither target nor new target pathname conflicts with ongoing action
 
     checkScope "$ENCODED_PATHNAME"
@@ -515,17 +551,16 @@ function execute-ida-move {
 
     ensureAncestorFoldersExist "$NEW_TARGET_PATHNAME"
 
-    # Catch output of curl execution and report fatal error if curl fails...
+    # Report fatal error if curl fails...
 
     if [ "$IDA_DEBUG" = "true" ]; then
-        echo "curl $IDA_CURL_OPS $IDA_NETRC --globoff -X MOVE -K- -H \"Destination:${IDA_HOST}${IDA_WEBDAV}/${IDA_STAGING_FOLDER}/${NEW_ENCODED_PATHNAME}\" \"${IDA_HOST}${IDA_WEBDAV}/${IDA_STAGING_FOLDER}/${ENCODED_PATHNAME}\" 2>&1 <<< \"$IDA_VERBOSE_CREDENTIALS\""
+        echo "curl $IDA_CURL_OPS $IDA_NETRC --globoff -X MOVE -K- -o /dev/null -w \"%{http_code}\" -H \"Destination:${IDA_HOST}${IDA_WEBDAV}/${IDA_STAGING_FOLDER}/${NEW_ENCODED_PATHNAME}\" \"${IDA_HOST}${IDA_WEBDAV}/${IDA_STAGING_FOLDER}/${ENCODED_PATHNAME}\" <<< \"$IDA_VERBOSE_CREDENTIALS\""
     fi
 
-    OUT=`curl $IDA_CURL_OPS $IDA_NETRC --globoff -X MOVE -K- -H "Destination:${IDA_HOST}${IDA_WEBDAV}/${IDA_STAGING_FOLDER}/${NEW_ENCODED_PATHNAME}" "${IDA_HOST}${IDA_WEBDAV}/${IDA_STAGING_FOLDER}/${ENCODED_PATHNAME}" 2>&1 <<< "$IDA_STDIN_CREDENTIALS"`
+    RESPONSE=`curl $IDA_CURL_OPS $IDA_NETRC --globoff -X MOVE -K- -o /dev/null -w "%{http_code}" -H "Destination:${IDA_HOST}${IDA_WEBDAV}/${IDA_STAGING_FOLDER}/${NEW_ENCODED_PATHNAME}" "${IDA_HOST}${IDA_WEBDAV}/${IDA_STAGING_FOLDER}/${ENCODED_PATHNAME}" <<< "$IDA_STDIN_CREDENTIALS"`
 
-    if [ "$OUT" != "" ]; then
-        echo "Error: service request failed with the following output:" >&2
-        echo "$OUT" >&2
+    if [ "$RESPONSE" != "201" ]; then
+        echo "Error: MOVE request failed for '/${IDA_STAGING_FOLDER}/${ENCODED_PATHNAME}': ${RESPONSE}" >&2
         exit 1
     fi
 
@@ -539,6 +574,11 @@ function execute-ida-copy {
     ENCODED_PATHNAME=$(urlEncode "${TARGET_PATHNAME}")
     NEW_ENCODED_PATHNAME=$(urlEncode "${NEW_TARGET_PATHNAME}")
 
+    # Verify pathnames do not exceed length limit
+
+    checkLength "$ENCODED_PATHNAME"
+    checkLength "$NEW_ENCODED_PATHNAME"
+
     # Verify neither target nor new target pathname conflicts with ongoing action
 
     checkScope "$ENCODED_PATHNAME"
@@ -556,19 +596,19 @@ function execute-ida-copy {
 
     ensureAncestorFoldersExist "$NEW_TARGET_PATHNAME"
 
-    # Catch output of curl execution and report fatal error if curl fails...
+    # Report fatal error if curl fails...
 
     if [ "$IDA_DEBUG" = "true" ]; then
-        echo "curl $IDA_CURL_OPS $IDA_NETRC --globoff -X COPY -K- -H \"Destination:${IDA_HOST}${IDA_WEBDAV}/${IDA_STAGING_FOLDER}/${NEW_ENCODED_PATHNAME}\" \"${IDA_HOST}${IDA_WEBDAV}/${IDA_TARGET_FOLDER}/${ENCODED_PATHNAME}\" 2>&1 <<< \"$IDA_VERBOSE_CREDENTIALS\""
+        echo "curl $IDA_CURL_OPS $IDA_NETRC --globoff -X COPY -K- -o /dev/null -w \"%{http_code}\" -H \"Destination:${IDA_HOST}${IDA_WEBDAV}/${IDA_STAGING_FOLDER}/${NEW_ENCODED_PATHNAME}\" \"${IDA_HOST}${IDA_WEBDAV}/${IDA_TARGET_FOLDER}/${ENCODED_PATHNAME}\" <<< \"$IDA_VERBOSE_CREDENTIALS\""
     fi
 
-    OUT=`curl $IDA_CURL_OPS $IDA_NETRC --globoff -X COPY -K- -H "Destination:${IDA_HOST}${IDA_WEBDAV}/${IDA_STAGING_FOLDER}/${NEW_ENCODED_PATHNAME}" "${IDA_HOST}${IDA_WEBDAV}/${IDA_TARGET_FOLDER}/${ENCODED_PATHNAME}" 2>&1 <<< "$IDA_STDIN_CREDENTIALS"`
+    RESPONSE=`curl $IDA_CURL_OPS $IDA_NETRC --globoff -X COPY -K- -o /dev/null -w "%{http_code}" -H "Destination:${IDA_HOST}${IDA_WEBDAV}/${IDA_STAGING_FOLDER}/${NEW_ENCODED_PATHNAME}" "${IDA_HOST}${IDA_WEBDAV}/${IDA_TARGET_FOLDER}/${ENCODED_PATHNAME}" <<< "$IDA_STDIN_CREDENTIALS"`
 
-    if [ "$OUT" != "" ]; then
-        echo "Error: service request failed with the following output:" >&2
-        echo "$OUT" >&2
+    if [ "$RESPONSE" != "201" ]; then
+        echo "Error: COPY request failed for '/${IDA_TARGET_FOLDER}/${ENCODED_PATHNAME}': ${RESPONSE}" >&2
         exit 1
     fi
+
 
     if [ "$IDA_VERBOSE" = "true" ]; then
         echo "Target copied successfully."
@@ -579,6 +619,10 @@ function execute-ida-delete {
 
     ENCODED_PATHNAME=$(urlEncode "${TARGET_PATHNAME}")
 
+    # Verify pathname does not exceed length limit
+
+    checkLength "$ENCODED_PATHNAME"
+
     # Verify target pathname does not conflict with ongoing action
 
     checkScope "$ENCODED_PATHNAME"
@@ -587,17 +631,16 @@ function execute-ida-delete {
 
     verifyTargetExists "$ENCODED_PATHNAME"
 
-    # Catch output of curl execution and report fatal error if curl fails...
+    # Report fatal error if curl fails...
 
     if [ "$IDA_DEBUG" = "true" ]; then
-        echo "curl $IDA_CURL_OPS $IDA_NETRC --globoff -X DELETE -K- \"${IDA_HOST}${IDA_WEBDAV}/${IDA_STAGING_FOLDER}/${ENCODED_PATHNAME}\" 2>&1 <<< \"$IDA_VERBOSE_CREDENTIALS\""
+        echo "curl $IDA_CURL_OPS $IDA_NETRC --globoff -X DELETE -K- -o /dev/null -w \"%{http_code}\" \"${IDA_HOST}${IDA_WEBDAV}/${IDA_STAGING_FOLDER}/${ENCODED_PATHNAME}\" <<< \"$IDA_VERBOSE_CREDENTIALS\""
     fi
 
-    OUT=`curl $IDA_CURL_OPS $IDA_NETRC --globoff -X DELETE -K- "${IDA_HOST}${IDA_WEBDAV}/${IDA_STAGING_FOLDER}/${ENCODED_PATHNAME}" 2>&1 <<< "$IDA_STDIN_CREDENTIALS"`
+    RESPONSE=`curl $IDA_CURL_OPS $IDA_NETRC --globoff -X DELETE -K- -o /dev/null -w "%{http_code}" "${IDA_HOST}${IDA_WEBDAV}/${IDA_STAGING_FOLDER}/${ENCODED_PATHNAME}" <<< "$IDA_STDIN_CREDENTIALS"`
 
-    if [ "$OUT" != "" ]; then
-        echo "Error: service request failed with the following output:" >&2
-        echo "$OUT" >&2
+    if [[ ${RESPONSE::1} != "2" ]]; then
+        echo "Error: DELETE request failed for '/${IDA_STAGING_FOLDER}/${ENCODED_PATHNAME}':" >&2
         exit 1
     fi
 
@@ -609,6 +652,10 @@ function execute-ida-delete {
 function execute-ida-download {
 
     ENCODED_PATHNAME=$(urlEncode "${TARGET_PATHNAME}")
+
+    # Verify pathname does not exceed length limit
+
+    checkLength "$ENCODED_PATHNAME"
 
     # Verify that target exists
 
@@ -638,18 +685,17 @@ function execute-ida-download {
         fi
 
         if [ "$IDA_DEBUG" = "true" ]; then
-            echo "curl $IDA_CURL_OPS $IDA_NETRC --globoff -K- -o \"$LOCAL_PATHNAME\" \"${IDA_HOST}${IDA_WEBDAV}/${IDA_TARGET_FOLDER}/${ENCODED_PATHNAME}\" <<< \"$IDA_VERBOSE_CREDENTIALS\""
+            echo "curl $IDA_CURL_OPS $IDA_NETRC --globoff -K- -w \"%{http_code}\" -o \"$LOCAL_PATHNAME\" \"${IDA_HOST}${IDA_WEBDAV}/${IDA_TARGET_FOLDER}/${ENCODED_PATHNAME}\" <<< \"$IDA_VERBOSE_CREDENTIALS\""
         fi
 
         if [ "$IDA_EXECUTE_ACTION" = "true" ]; then
 
-            # Catch output of curl execution and report fatal error if curl fails...
+            # Report fatal error if curl fails...
 
-            OUT=`curl $IDA_CURL_OPS $IDA_NETRC --globoff -K- -o "$LOCAL_PATHNAME" "${IDA_HOST}${IDA_WEBDAV}/${IDA_TARGET_FOLDER}/${ENCODED_PATHNAME}" 2>&1 <<< "$IDA_STDIN_CREDENTIALS"`
+            RESPONSE=`curl $IDA_CURL_OPS $IDA_NETRC --globoff -K- -w "%{http_code}" -o "$LOCAL_PATHNAME" "${IDA_HOST}${IDA_WEBDAV}/${IDA_TARGET_FOLDER}/${ENCODED_PATHNAME}" <<< "$IDA_STDIN_CREDENTIALS"`
 
-            if [ "$OUT" != "" ]; then
-                echo "Error: service request failed with the following output:" >&2
-                echo "$OUT" >&2
+            if [[ ${RESPONSE::1} != "2" ]]; then
+                echo "Error: GET request failed for '/${IDA_TARGET_FOLDER}/${ENCODED_PATHNAME}': ${RESPONSE}" >&2
                 exit 1
             fi
         fi
@@ -671,22 +717,20 @@ function execute-ida-download {
         fi
 
         if [ "$IDA_DEBUG" = "true" ]; then
-            echo "curl $IDA_CURL_OPS --globoff --header \"Accept: application/zip\" $IDA_NETRC -K- -o \"$LOCAL_PATHNAME\" \"${IDA_HOST}/index.php/apps/files/ajax/download.php?dir=/${IDA_TARGET_FOLDER}/${ENCODED_PATHNAME}\" <<< \"$IDA_VERBOSE_CREDENTIALS\""
+            echo "curl $IDA_CURL_OPS --globoff -w \"%{http_code}\" --header \"Accept: application/zip\" $IDA_NETRC -K- -o \"$LOCAL_PATHNAME\" \"${IDA_HOST}/index.php/apps/files/ajax/download.php?dir=/${IDA_TARGET_FOLDER}/${ENCODED_PATHNAME}\" <<< \"$IDA_VERBOSE_CREDENTIALS\""
         fi
 
         if [ "$IDA_EXECUTE_ACTION" = "true" ]; then
 
-            # Catch output of curl execution and report fatal error if curl fails...
+            # Report fatal error if curl fails...
 
-            OUT=`curl $IDA_CURL_OPS --globoff --header "Accept: application/zip" $IDA_NETRC -K- -o "$LOCAL_PATHNAME" "${IDA_HOST}/index.php/apps/files/ajax/download.php?dir=/${IDA_TARGET_FOLDER}/${ENCODED_PATHNAME}" 2>&1 <<< "$IDA_STDIN_CREDENTIALS"`
+            RESPONSE=`curl $IDA_CURL_OPS --globoff -w "%{http_code}" --header "Accept: application/zip" $IDA_NETRC -K- -o "$LOCAL_PATHNAME" "${IDA_HOST}/index.php/apps/files/ajax/download.php?dir=/${IDA_TARGET_FOLDER}/${ENCODED_PATHNAME}" <<< "$IDA_STDIN_CREDENTIALS"`
 
-            if [ "$OUT" != "" ]; then
-                echo "Error: service request failed with the following output:" >&2
-                echo "$OUT" >&2
+            if [[ ${RESPONSE::1} != "2" ]]; then
+                echo "Error: GET request failed for '/${IDA_TARGET_FOLDER}/${ENCODED_PATHNAME}': ${RESPONSE}" >&2
                 exit 1
             fi
         fi
-
     fi
 
     if [ "$IDA_VERBOSE" = "true" ]; then
@@ -698,6 +742,10 @@ function execute-ida-info {
 
     ENCODED_PATHNAME=$(urlEncode "${TARGET_PATHNAME}")
 
+    # Verify target pathname does not exceed length limit
+
+    checkLength "$ENCODED_PATHNAME"
+
     # Verify target pathname does not conflict with ongoing action
 
     checkScope "$ENCODED_PATHNAME"
@@ -706,34 +754,34 @@ function execute-ida-info {
 
     verifyTargetExists "$ENCODED_PATHNAME"
 
-    # Catch output of curl execution and report fatal error if curl fails...
+    # Report fatal error if curl fails...
 
     if [ "$IDA_DEBUG" = "true" ]; then
         echo "curl $IDA_CURL_OPS $IDA_NETRC --globoff -X PROPFIND -K- \"${IDA_HOST}${IDA_WEBDAV}/${IDA_TARGET_FOLDER}/${ENCODED_PATHNAME}\" 2>&1 <<< \"$IDA_VERBOSE_CREDENTIALS\""
     fi
 
-    OUT=`curl $IDA_CURL_OPS $IDA_NETRC --globoff -X PROPFIND -K- "${IDA_HOST}${IDA_WEBDAV}/${IDA_TARGET_FOLDER}/${ENCODED_PATHNAME}" 2>&1 <<< "$IDA_STDIN_CREDENTIALS"`
+    OUTPUT=`curl $IDA_CURL_OPS $IDA_NETRC --globoff -X PROPFIND -K- "${IDA_HOST}${IDA_WEBDAV}/${IDA_TARGET_FOLDER}/${ENCODED_PATHNAME}" 2>&1 <<< "$IDA_STDIN_CREDENTIALS"`
 
-    ERROR=`echo "$OUT" | grep '<d:response>'`
+    RESPONSE=`echo "$OUTPUT" | grep '<d:response>'`
 
-    if [ "$ERROR" = "" ]; then
-        echo "Error: service request failed with the following output:" >&2
-        echo "$OUT" >&2
+    if [ "$RESPONSE" = "" ]; then
+        echo "Error: PROPFIND request failed for '/${IDA_TARGET_FOLDER}/${ENCODED_PATHNAME}':" >&2
+        echo "$OUTPUT" >&2
         exit 1
     fi
 
     TARGET_TYPE="file"
 
-    NOT_FILE=`echo "$OUT" |  grep "<d:resourcetype><d:collection/></d:resourcetype>"`
+    COLLECTION=`echo "$OUTPUT" |  grep "<d:resourcetype><d:collection/></d:resourcetype>"`
 
-    if [ "$NOT_FILE" ]; then
+    if [ "$COLLECTION" ]; then
         TARGET_TYPE="folder"
     fi
 
     if [[ "$OSTYPE" = "darwin"* ]]; then
-        OUT=$(echo "$OUT" | sed -e $'s/</\\\n</g')
+        OUTPUT=$(echo "$OUTPUT" | sed -e $'s/</\\\n</g')
     else
-        OUT=`echo "$OUT" | sed -e 's/</\n</g'`
+        OUTPUT=`echo "$OUTPUT" | sed -e 's/</\n</g'`
     fi
 
     echo "project:    $IDA_PROJECT"
@@ -754,7 +802,7 @@ function execute-ida-info {
 
     if [ "$TARGET_TYPE" = "file" ]; then
 
-        ENCODING=`echo "$OUT" | grep "<d:getcontenttype>" | head -1 | sed -e 's/^.*>//'`
+        ENCODING=`echo "$OUTPUT" | grep "<d:getcontenttype>" | head -1 | sed -e 's/^.*>//'`
 
         if [ "$IDA_FROZEN" = "true" ]; then
 
@@ -762,32 +810,32 @@ function execute-ida-info {
                 echo "curl $IDA_CURL_OPS $IDA_NETRC --globoff -K- \"${IDA_HOST}${IDA_API}/files/byProjectPathname/${IDA_PROJECT}?pathname=/${ENCODED_PATHNAME}\" 2>&1 <<< \"$IDA_VERBOSE_CREDENTIALS\""
             fi
 
-            OUT=`curl $IDA_CURL_OPS $IDA_NETRC --globoff -K- "${IDA_HOST}${IDA_API}/files/byProjectPathname/${IDA_PROJECT}?pathname=/${ENCODED_PATHNAME}" 2>&1 <<< "$IDA_STDIN_CREDENTIALS"`
+            OUTPUT=`curl $IDA_CURL_OPS $IDA_NETRC --globoff -K- "${IDA_HOST}${IDA_API}/files/byProjectPathname/${IDA_PROJECT}?pathname=/${ENCODED_PATHNAME}" 2>&1 <<< "$IDA_STDIN_CREDENTIALS"`
 
-            ERROR=`echo "$OUT" | grep '"pid":'`
+            PID=`echo "$OUTPUT" | grep '"pid":'`
 
-            if [ "$ERROR" = "" ]; then
-                echo "Error: service request failed with the following output:" >&2
-                echo "$OUT" >&2
+            if [ "$PID" = "" ]; then
+                echo "Error: GET request failed for '/files/byProjectPathname/${IDA_PROJECT}?pathname=/${ENCODED_PATHNAME}':" >&2
+                echo "$OUTPUT" >&2
                 exit 1
             fi
 
             if [[ "$OSTYPE" = "darwin"* ]]; then
-                OUT=$(echo "$OUT" | sed -e $'s/[{,]/\\\n/g')
+                OUTPUT=$(echo "$OUTPUT" | sed -e $'s/[{,]/\\\n/g')
             else
-                OUT=`echo "$OUT" | sed -e 's/[{,]/\n/g'`
+                OUTPUT=`echo "$OUTPUT" | sed -e 's/[{,]/\n/g'`
             fi
 
-            PID=`echo "$OUT" | grep '"pid"' | head -1 | sed -e 's/^.*"pid"[ ]*:[ ]*"//' | sed -e 's/".*$//'`
-            SIZE=`echo "$OUT" | grep '"size"' | head -1 | sed -e 's/^.*"size"[ ]*:[ ]*//' | sed -e 's/[^0-9].*$//'`
-            CHECKSUM=`echo "$OUT" | grep '"checksum"' | head -1 | sed -e 's/^.*"checksum"[ ]*:[ ]*"//' | sed -e 's/".*$//'`
-            MODIFIED=`echo "$OUT" | grep '"modified"' | head -1 | sed -e 's/^.*"modified"[ ]*:[ ]*"//' | sed -e 's/".*$//'`
-            FROZEN=`echo "$OUT" | grep '"frozen"' | head -1 | sed -e 's/^.*"frozen"[ ]*:[ ]*"//' | sed -e 's/".*$//'`
+            PID=`echo "$OUTPUT" | grep '"pid"' | head -1 | sed -e 's/^.*"pid"[ ]*:[ ]*"//' | sed -e 's/".*$//'`
+            SIZE=`echo "$OUTPUT" | grep '"size"' | head -1 | sed -e 's/^.*"size"[ ]*:[ ]*//' | sed -e 's/[^0-9].*$//'`
+            CHECKSUM=`echo "$OUTPUT" | grep '"checksum"' | head -1 | sed -e 's/^.*"checksum"[ ]*:[ ]*"//' | sed -e 's/".*$//'`
+            MODIFIED=`echo "$OUTPUT" | grep '"modified"' | head -1 | sed -e 's/^.*"modified"[ ]*:[ ]*"//' | sed -e 's/".*$//'`
+            FROZEN=`echo "$OUTPUT" | grep '"frozen"' | head -1 | sed -e 's/^.*"frozen"[ ]*:[ ]*"//' | sed -e 's/".*$//'`
 
         else
 
-            SIZE=`echo "$OUT" | grep "<d:getcontentlength>" | head -1 | sed -e 's/^.*>//'`
-            MODIFIED=`echo "$OUT" | grep "<d:getlastmodified>" | head -1 | sed -e 's/^.*>//'`
+            SIZE=`echo "$OUTPUT" | grep "<d:getcontentlength>" | head -1 | sed -e 's/^.*>//'`
+            MODIFIED=`echo "$OUTPUT" | grep "<d:getlastmodified>" | head -1 | sed -e 's/^.*>//'`
             MODIFIED=`date -u +"%Y-%m-%dT%H:%M:%SZ" -d "$MODIFIED"`
 
         fi
@@ -818,7 +866,7 @@ function execute-ida-info {
 
     else
 
-        SIZE=`echo "$OUT" | grep "<d:quota-used-bytes>" | head -1 | sed -e 's/^.*>//'`
+        SIZE=`echo "$OUTPUT" | grep "<d:quota-used-bytes>" | head -1 | sed -e 's/^.*>//'`
 
             if [ "$IDA_FROZEN" = true ]; then
                 SED_PATTERN="s:^.*/${IDA_PROJECT}/:  /:"
@@ -831,11 +879,11 @@ function execute-ida-info {
 
         if [[ "$OSTYPE" = "darwin"* ]]; then
             # Mac OSX
-            CONTENTS=$(echo "$OUT" | sed -e $'s:<:\\\n<:g' | grep "<d:href>" | tail -n +2 | sed -e "$SED_PATTERN" | \
+            CONTENTS=$(echo "$OUTPUT" | sed -e $'s:<:\\\n<:g' | grep "<d:href>" | tail -n +2 | sed -e "$SED_PATTERN" | \
                        sed -e 's:n$::' | sed -e 's:\\\\\\$:$:g' | sed -e $'s:\%:\\\\x:g')
         else
             # Linux
-            CONTENTS=$(echo "$OUT" | sed -e 's/</\n</g' | grep "<d:href>" | tail -n +2 | sed -e "$SED_PATTERN" | \
+            CONTENTS=$(echo "$OUTPUT" | sed -e 's/</\n</g' | grep "<d:href>" | tail -n +2 | sed -e "$SED_PATTERN" | \
                        sed -e 's:\\\\\\$:$:g' | sed -e $'s:\%:\\\\x:g')
         fi
 
@@ -1286,21 +1334,17 @@ if [ "$IDA_VERBOSE" = "true" ]; then
 fi
 
 if [ "$IDA_DEBUG" = "true" ]; then
-    echo "curl $IDA_CURL_OPS $IDA_NETRC --globoff -I -K- \"${IDA_HOST}${IDA_WEBDAV}/${IDA_STAGING_FOLDER}\" 2>&1 <<< \"$IDA_STDIN_CREDENTIALS\""
+    echo "curl $IDA_CURL_OPS $IDA_NETRC --globoff -I -K- -o /dev/null -w \"%{http_code}\" \"${IDA_HOST}${IDA_WEBDAV}/${IDA_STAGING_FOLDER}\" <<< \"$IDA_STDIN_CREDENTIALS\""
 fi
 
-SERVICE_QUERY=`curl $IDA_CURL_OPS $IDA_NETRC --globoff -I -K- "${IDA_HOST}${IDA_WEBDAV}/${IDA_STAGING_FOLDER}" 2>&1 <<< "$IDA_STDIN_CREDENTIALS" | grep "HTTP/1.1 "`
+RESPONSE=`curl $IDA_CURL_OPS $IDA_NETRC --globoff -I -K- -o /dev/null -w "%{http_code}" "${IDA_HOST}${IDA_WEBDAV}/${IDA_STAGING_FOLDER}" <<< "$IDA_STDIN_CREDENTIALS"`
 
-SERVICE_UNAVAILABLE=`echo "$SERVICE_QUERY" | grep "HTTP/1.1 503"`
-
-if [ "$SERVICE_UNAVAILABLE" != "" ]; then
+if [ "$RESPONSE" = "503" ]; then
     echo "Error: The service is currently unavailable." >&2
     exit 1
 fi
 
-CREDENTIALS_OK=`echo "$SERVICE_QUERY" | grep "HTTP/1.1 200"`
-
-if [ "$CREDENTIALS_OK" = "" ]; then
+if [[ ${RESPONSE::1} != "2" ]]; then
     echo "Error: Authentication failed." >&2
     exit 1
 fi

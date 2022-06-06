@@ -164,6 +164,11 @@ The ignore file should contain one pattern per line, and will be applied only to
 or portions of pathnames. Patterns should be compatible with those understood by the `-name` option of the
 POSIX `find` command.
 
+## Cookie jar file
+
+The `ida` script utilizes a curl cookie jar stored as `.ida-cookie-jar` in your home directory. If you encounter
+authentication errors, try deleting the cookie jar file to clear any expired session cookies.
+
 ## Collision Avoidance for File Operations
  
 All users belonging to a given project have the same rights, and may interact with, add, and remove

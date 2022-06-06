@@ -91,11 +91,10 @@ class TestIdaCli(unittest.TestCase):
 
         # Clear any residual accounts, if they exist from a prior run
         self.success = True
-        noflush = self.config.get("NO_FLUSH_AFTER_TESTS", "false")
         self.config["NO_FLUSH_AFTER_TESTS"] = "false"
         self.tearDown()
         self.success = False
-        self.config["NO_FLUSH_AFTER_TESTS"] = noflush
+        self.config["NO_FLUSH_AFTER_TESTS"] = "true"
 
         print("(initializing)")
 
@@ -125,15 +124,17 @@ class TestIdaCli(unittest.TestCase):
         f.write("IDA_PASSWORD=\"invalid\"\n")
         f.close()
 
-        # Create test project
-        cmd = "%s ADD %s 1" % (self.ida_project, self.project_name)
-        result = subprocess.call(cmd, shell=True, stdout=subprocess.PIPE)
-        self.assertEqual(result, 0, "Failed to create test project")
+        # Clear any curl cookies
 
-        # Create test user account
-        cmd = "%s ADD %s %s" % (self.ida_user, self.user_name, self.project_name)
-        result = subprocess.call(cmd, shell=True, stdout=subprocess.PIPE)
-        self.assertEqual(result, 0, "Failed to create test user account")
+        cmd = "%s/tests/utils/clear-cookies" % self.config["IDA_CLI_ROOT"]
+        result = os.system(cmd)
+        self.assertEquals(result, 0)
+
+        # Initialize test accounts
+
+        cmd = "sudo -u %s %s/tests/utils/initialize-test-accounts" % (self.config["HTTPD_USER"], self.config["IDA_CLI_ROOT"])
+        result = os.system(cmd)
+        self.assertEquals(result, 0)
 
 
     def tearDown(self):
@@ -157,23 +158,9 @@ class TestIdaCli(unittest.TestCase):
 
             shutil.rmtree(self.tempdir, ignore_errors=True)
 
-            cmd = "%s DISABLE %s" % (self.ida_project, self.project_name)
-            subprocess.call(cmd, shell=True, stdout=subprocess.PIPE)
-
-            cmd = "%s DELETE PSO_%s" % (self.ida_user, self.project_name)
-            subprocess.call(cmd, shell=True, stdout=subprocess.PIPE)
-
-            cmd = "%s DELETE %s" % (self.ida_user, self.user_name)
-            subprocess.call(cmd, shell=True, stdout=subprocess.PIPE)
-
-            cmd = "rm -fr %s/PSO_%s/*" % (self.storage_root, self.project_name)
-            subprocess.call(cmd, shell=True, stdout=subprocess.PIPE)
-
-            cmd = "rm -fr %s/PSO_%s" % (self.storage_root, self.project_name)
-            subprocess.call(cmd, shell=True, stdout=subprocess.PIPE)
-
-            cmd = "rm -fr %s/%s" % (self.storage_root, self.user_name)
-            subprocess.call(cmd, shell=True, stdout=subprocess.PIPE)
+            cmd = "sudo -u %s %s/tests/utils/initialize-test-accounts flush" % (self.config["HTTPD_USER"], self.config["IDA_CLI_ROOT"])
+            result = os.system(cmd)
+            self.assertEquals(result, 0)
 
         self.assertTrue(self.success)
 
@@ -266,6 +253,17 @@ class TestIdaCli(unittest.TestCase):
             failed = True
             output = error.output.decode(sys.stdout.encoding)
             self.assertIn("Error: Missing target pathname.", output)
+        self.assertTrue(failed, output)
+
+        print("Attempt to upload file to pathname exceeding maximum allowed URL encoded pathname length")
+        cmd = "%s upload %s /XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX_201_characters %s/Contact.txt" % (self.cli, self.args, self.testdata)
+        failed = False
+        try:
+            output = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT).decode(sys.stdout.encoding)
+        except subprocess.CalledProcessError as error:
+            failed = True
+            output = error.output.decode(sys.stdout.encoding)
+            self.assertIn("Error: URL encoded pathname exceeds maximum allowed length of 200 characters:", output)
         self.assertTrue(failed, output)
 
         print("Attempt to upload file using unspecified local pathname")
