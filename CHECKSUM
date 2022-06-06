@@ -1,9 +1,8 @@
 The following checksum corresponds to the latest release of the 'ida' script:
 
-73f50f5f8a11349501a93e740643d344a2d396d01061514e75da436696aa685a
+b6e60d8811c62b8122d8e6fd915e73aedde6d75f60bc1fea41845644baf9faf0
 
 It should agree with the checksum reported when executing 'ida -h'.
 
 If the reported checksum does not match the above checksum, then your version
 of the ida script is not the latest.
-

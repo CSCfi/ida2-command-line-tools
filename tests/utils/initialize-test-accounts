@@ -1,0 +1,241 @@
+#!/bin/bash
+#--------------------------------------------------------------------------------
+# This file is part of the IDA research data storage service
+#
+# Copyright (C) 2022 Ministry of Education and Culture, Finland
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Affero General Public License as published
+# by the Free Software Foundation, either version 3 of the License,
+# or (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
+# or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Affero General Public
+# License for more details.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+#
+# @author   CSC - IT Center for Science Ltd., Espoo Finland <servicedesk@csc.fi>
+# @license  GNU Affero General Public License, version 3
+# @link     https://research.csc.fi/
+#--------------------------------------------------------------------------------
+#
+# This script initializes a set of explicit test accounts (project groups, users,
+# group memberships, and files) used by the automated tests.
+#
+# Notes: 
+#
+# If the single argument "flush" is given to this script, then all existing
+# accounts and data are purged and no new accounts created.
+#
+# This script expects the IDA configuration and constants files to reside in
+# specific pathnames. If needed, edit the definitions immediately below.
+#
+#--------------------------------------------------------------------------------
+
+. "/var/ida/config/config.sh"
+. "/var/ida/lib/constants.sh"
+
+if [ "$ROOT" = "" ]; then
+    echo "Error: Failed to properly initialize script. Aborting." >&2
+    exit 1
+fi
+
+#--------------------------------------------------------------------------------
+# Verify that we are in a test environment
+
+if [ "$IDA_ENVIRONMENT" == "PRODUCTION" ]; then
+    errorExit "Error: This script can not be run in a production environment. Aborting."
+fi
+
+#--------------------------------------------------------------------------------
+# Ensure script is run as apache
+
+ID=`id -u -n`
+if [ "$ID" != "$HTTPD_USER" ]; then
+    echo "You must execute this script as $HTTPD_USER"
+    exit 1
+fi
+
+#--------------------------------------------------------------------------------
+
+PROJECTS="test_project_cli"
+USERS="test_user_cli"
+BASIC_RELATIONS="test_user_cli:test_project_cli"
+
+#--------------------------------------------------------------------------------
+
+CURL_POST='curl --fail -k -s -S -X POST -u'
+
+PADDING="-50"
+
+function failure {
+    echo "FAILED: " "$@"
+}
+
+function success {
+    echo "OK"
+}
+
+#--------------------------------------------------------------------------------
+
+echo "Flushing all action and file records from IDA service database..."
+
+for PROJECT in $PROJECTS; do
+    STEP="   Flushing $PROJECT"
+    printf "%${PADDING}s" "$STEP"
+    OUT=`$CURL_POST $NC_ADMIN_USER:$NC_ADMIN_PASS "$URL_BASE_IDA/api/flush?project=$PROJECT" 2>&1`
+    if [ "$?" -ne 0 ]; then
+        failure "$OUT (ignored)"
+    else
+        success
+    fi
+done
+
+if [ "$METAX_AVAILABLE" = "1" ]; then
+
+    echo "Flushing all frozen file records from METAX database..."
+
+    for PROJECT in $PROJECTS; do
+        STEP="   Flushing $PROJECT"
+        printf "%${PADDING}s" "$STEP"
+        OUT=`$CURL_POST $METAX_API_USER:$METAX_API_PASS "$METAX_API_RPC_URL/files/flush_project?project_identifier=$PROJECT" 2>&1`
+        if [ "$?" -ne 0 ]; then
+            failure "$OUT (ignored)"
+        else
+            success
+        fi
+    done
+fi
+
+echo "Flushing all replicated files..."
+
+for PROJECT in $PROJECTS; do
+    STEP="   Flushing $PROJECT"
+    printf "%${PADDING}s" "$STEP"
+    OUT=`/bin/rm -fr $DATA_REPLICATION_ROOT/projects/$PROJECT 2>&1`
+    if [ "$?" -ne 0 ]; then
+        failure "$OUT (ignored)"
+    else
+        success
+    fi
+done
+
+#--------------------------------------------------------------------------------
+
+echo "Cleaning up any existing test projects..."
+
+echo "Deleting any existing test users..."
+
+for USER in $USERS; do
+    STEP="   Deleting $USER"
+    printf "%${PADDING}s" "$STEP"
+    OUT=`$ROOT/admin/ida_user DELETE $USER 2>&1`
+    if [ "$?" -ne 0 ]; then
+        failure "$OUT (ignored)"
+    else
+        success
+    fi
+done
+
+echo "Deleting any existing test projects..."
+
+for PROJECT in $PROJECTS; do
+    STEP="   Deleting $PROJECT"
+    printf "%${PADDING}s" "$STEP"
+    OUT=`$ROOT/admin/ida_project DISABLE $PROJECT 2>&1`
+    if [ "$?" -ne 0 ]; then
+        failure "$OUT (ignored)"
+    else
+        success
+    fi
+done
+
+echo "Deleting any existing project share owners..."
+
+for PROJECT in $PROJECTS; do
+    USER="$PROJECT_USER_PREFIX""$PROJECT"
+    STEP="   Deleting $USER"
+    printf "%${PADDING}s" "$STEP"
+    OUT=`$ROOT/admin/ida_user DELETE $USER 2>&1`
+    if [ "$?" -ne 0 ]; then
+        failure "$OUT (ignored)"
+    else
+        success
+    fi
+done
+
+echo "Deleting any residual test user directories..."
+
+for USER in $USERS; do
+    if [ -d "$STORAGE_OC_DATA_ROOT/$USER" ]; then
+        STEP="   Deleting $USER "
+        printf "%${PADDING}s" "$STEP"
+        OUT=`rm -fr "$STORAGE_OC_DATA_ROOT/$USER"`
+        if [ "$?" -ne 0 ]; then
+            failure "$OUT (ignored)"
+        else
+            success
+        fi
+    fi
+done
+
+echo "Deleting any residual project share owner directories and links..."
+
+for PROJECT in $PROJECTS; do
+    for CANDIDATE_STORAGE_VOLUME in ${STORAGE_CANDIDATES[*]}; do
+        TARGET="${CANDIDATE_STORAGE_VOLUME}/${PROJECT_USER_PREFIX}${PROJECT}"
+        if [ -e "$TARGET" ]; then
+            STEP="   Deleting $TARGET "
+            printf "%${PADDING}s" "$STEP"
+            OUT=`rm -fr "$TARGET"`
+            if [ "$?" -ne 0 ]; then
+                failure "$OUT (ignored)"
+            else
+                success
+            fi
+        fi
+    done
+done
+
+#--------------------------------------------------------------------------------
+
+if [ "$1" = "flush" ]; then
+    exit
+fi
+
+#--------------------------------------------------------------------------------
+
+echo "Creating test accounts..."
+
+echo "Creating projects..."
+
+for PROJECT in $PROJECTS; do
+    STEP="   Creating $PROJECT"
+    printf "%${PADDING}s" "$STEP"
+    OUT=`$ROOT/admin/ida_project ADD $PROJECT 1 2>&1`
+    if [ "$?" -ne 0 ]; then
+        failure "$OUT"
+        exit 1
+    else
+        success
+    fi
+done
+
+echo "Creating users..."
+
+for RELATION in $BASIC_RELATIONS; do
+    USER=`echo $RELATION | sed -e 's/:.*$//'`
+    PROJECT=`echo $RELATION | sed -e 's/^.*://'`
+    STEP="   Creating $USER in $PROJECT"
+    printf "%${PADDING}s" "$STEP"
+    OUT=`$ROOT/admin/ida_user ADD $USER $PROJECT 2>&1`
+    if [ "$?" -ne 0 ]; then
+        failure "$OUT"
+        exit 1
+    else
+        success
+    fi
+done
