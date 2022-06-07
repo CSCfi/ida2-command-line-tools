@@ -22,7 +22,7 @@
 # @link https://research.csc.fi/
 #--------------------------------------------------------------------------------
 
-RELEASE_CHECKSUM="b6e60d8811c62b8122d8e6fd915e73aedde6d75f60bc1fea41845644baf9faf0"
+RELEASE_CHECKSUM="d4aa492cd6d05b79443e5204666f7d6a838308d644f076f88864a2569ebf74b1"
 
 IDA_BETA_SCRIPT="false"
 
@@ -100,9 +100,6 @@ Usage: ida [-h]
        to filenames, not to pathnames or portions of pathnames. Patterns should be compatible with those understood
        by the -name option of the POSIX find command.
 
-       This script utilizes a curl cookie jar stored as '\$HOME/.ida-cookie-jar'. If you encounter authentication
-       errors, try deleting the cookie jar file to clear any expired session cookies.
-
        Note that files are not officially stored persistently in the IDA service until they are frozen, which can
        only be done using the web UI of the service (https://www.fairdata.fi/en/ida/user-guide/#project-data-storage).
 
@@ -133,8 +130,7 @@ IDA_API="/apps/ida/api"
 IDA_STAGING_SUFFIX="%2b"
 IDA_CONFIG_FILE="$HOME/.ida-config"
 IDA_IGNORE_FILE="$HOME/.ida-ignore"
-IDA_COOKIE_JAR="$HOME/.ida-cookie-jar"
-IDA_CURL_OPS="-s -S -L -b $IDA_COOKIE_JAR -c $IDA_COOKIE_JAR"
+IDA_CURL_OPS="-s -S -L"
 IDA_EXECUTE_ACTION="true"
 IDA_NETRC=""
 IDA_FROZEN="false"
