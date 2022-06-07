@@ -34,7 +34,6 @@
 # --------------------------------------------------------------------------------
 
 import requests
-import urllib
 import unittest
 import subprocess
 import os
@@ -123,12 +122,6 @@ class TestIdaCli(unittest.TestCase):
         f.write("IDA_USERNAME=\"test_user_cli\"\n")
         f.write("IDA_PASSWORD=\"invalid\"\n")
         f.close()
-
-        # Clear any curl cookies
-
-        cmd = "%s/tests/utils/clear-cookies" % self.config["IDA_CLI_ROOT"]
-        result = os.system(cmd)
-        self.assertEquals(result, 0)
 
         # Initialize test accounts
 
