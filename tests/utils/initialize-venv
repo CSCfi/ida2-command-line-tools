@@ -1,7 +1,8 @@
-#--------------------------------------------------------------------------------
+#!/usr/bin/env bash
+# --------------------------------------------------------------------------------
 # This file is part of the IDA research data storage service
 #
-# Copyright (C) 2018 Ministry of Education and Culture, Finland
+# Copyright (C) 2022 Ministry of Education and Culture, Finland
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as published
@@ -19,13 +20,30 @@
 # @author   CSC - IT Center for Science Ltd., Espoo Finland <servicedesk@csc.fi>
 # @license  GNU Affero General Public License, version 3
 # @link     https://research.csc.fi/
-#--------------------------------------------------------------------------------
+# --------------------------------------------------------------------------------
 
-This subdirectory contains behavioral tests for the IDA command line tools. It
-depends on there being an installation of the IDA service on the same localhost,
-located in /var/ida, and utilizes the IDA configuration and test utility scripts.
+SCRIPT_ROOT=`dirname "$(realpath $0)"`
+TEST_ROOT=`dirname "$SCRIPT_ROOT"`
 
-RUNNING TESTS:
+PYTHON="/opt/fairdata/python3/bin/python"
 
-The tests folder contains a script 'run-tests' which will run all tests.
+if [ ! -x "$PYTHON" ]; then
+   PYTHON=`which python3`
+fi
 
+if [ ! -x "$PYTHON" ]; then
+    echo "Could not find python3 executable" >&2
+    exit 1
+fi
+
+cd $TEST_ROOT
+
+rm -fr $TEST_ROOT/venv 2>/dev/null
+
+$PYTHON -m venv $TEST_ROOT/venv
+
+source $TEST_ROOT/venv/bin/activate
+
+pip install --upgrade pip
+pip install 'wheel>=0.34.2' --force-reinstall
+pip install -r $TEST_ROOT/requirements.txt

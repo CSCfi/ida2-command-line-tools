@@ -21,23 +21,11 @@
 # @link     https://research.csc.fi/
 # --------------------------------------------------------------------------------
 
-import importlib.util
 import os
-import time
-import requests
-import subprocess
-
-
-class bcolors:
-    HEAD = '\033[35;1m'
-    LINE = '\033[34;1m'
-    PASS = '\033[92;1m'
-    FAIL = '\033[91;1m'
-    END = '\033[0m'
-    ERROR = '\033[35;1m'
-    SKIP = '\033[94;1m'
-    TOTAL = "\033[90;1m"
-    BOLD = "\033[1m"
+import sys
+import socket
+import importlib.util
+from pathlib import Path
 
 
 def _load_module_from_file(module_name, file_path):
@@ -53,68 +41,87 @@ def _load_module_from_file(module_name, file_path):
     return module
 
 
-def get_settings():
-    paths = {"server_configuration_path": "/var/ida/config/config.sh", "service_constants_path": "/var/ida/lib/constants.sh"}
-    return paths
-
-
 def load_configuration():
-    """
-    Load and return as a dict variables from the following ida configuration files:
-    - server instance configuration file
-    - service constants configuration file
-    """
-    settings = get_settings()
-    server_configuration = _load_module_from_file("server_configuration.variables", settings['server_configuration_path'])
-    service_constants = _load_module_from_file("service_constants.variables", settings['service_constants_path'])
+
+    cli_root = os.environ.get("IDA_CLI_ROOT", None)
+    if cli_root == None:
+        sys.exit("Error: The variable IDA_CLI_ROOT must be defined! Aborting")
+
+    # Derive the test configuration from a configuration file with the following
+    # priority, taking the first file that exists:
+    #     $IDA_CLI_ROOT/tests/config/config.sh
+    #     /var/ida/config/config.sh
+    #     $HOME/.ida-config
+    # If no configuration file can be found, abort.
+    #
+    # User account credentials can be defined in either the configuration file,
+    # or (better) in the ~/.netrc file. Thus, all tests based on user credentials
+    # will work when the user executing the tests has configured their environment
+    # as recommended for the 'ida' command line tools script.
+
+    config_located = False
+
+    config_path = "%s/tests/config/config.sh" % cli_root
+    if Path(config_path).is_file():
+        config_source = "TEST" # Automated tests config
+        config_located = True
+
+    #config_located = False # TEMP HACK
+
+    if not config_located:
+        config_path = "/var/ida/config/config.sh"
+        if Path(config_path).is_file():
+            config_source = "IDA" # IDA service config
+            config_located = True
+
+    #config_located = False # TEMP HACK
+
+    if not config_located:
+        config_path = "%s/.ida-config" % os.environ["HOME"]
+        if Path(config_path).is_file():
+            config_source = "CLI" # IDA CLI config
+            config_located = True
+
+    if not config_located:
+        sys.exit("Error: unable to locate any usable configuration! Aborting")
+
+    server_configuration = _load_module_from_file("server_configuration.variables", config_path)
+
+    ida_host = getattr(server_configuration, "IDA_HOST", "https://%s" % socket.gethostname())
+
+    # Construct configuration dictionary
     config = {
-        'ROOT':                   server_configuration.ROOT,
-        'OCC':                    server_configuration.OCC,
-        'IDA_API_ROOT_URL':       server_configuration.IDA_API_ROOT_URL,
-        'IDA_CLI_ROOT':           server_configuration.IDA_CLI_ROOT,
-        'URL_BASE_SHARE':         server_configuration.URL_BASE_SHARE,
-        'HTTPD_USER':             server_configuration.HTTPD_USER,
-        'NC_ADMIN_USER':          server_configuration.NC_ADMIN_USER,
-        'NC_ADMIN_PASS':          server_configuration.NC_ADMIN_PASS,
-        'PROJECT_USER_PASS':      server_configuration.PROJECT_USER_PASS,
-        'PROJECT_USER_PREFIX':    service_constants.PROJECT_USER_PREFIX,
-        'TEST_USER_PASS':         server_configuration.TEST_USER_PASS,
-        'BATCH_ACTION_TOKEN':     server_configuration.BATCH_ACTION_TOKEN,
-        'LOG':                    server_configuration.LOG,
-        'LOG_ROOT':               os.path.dirname(server_configuration.LOG),
-        'STAGING_FOLDER_SUFFIX':  service_constants.STAGING_FOLDER_SUFFIX,
-        'STORAGE_OC_DATA_ROOT':   server_configuration.STORAGE_OC_DATA_ROOT,
-        'DATA_REPLICATION_ROOT':  server_configuration.DATA_REPLICATION_ROOT,
-        'MAX_FILE_COUNT':         service_constants.MAX_FILE_COUNT,
-        'DBTYPE':                 server_configuration.DBTYPE,
-        'DBNAME':                 server_configuration.DBNAME,
-        'DBUSER':                 server_configuration.DBUSER,
-        'DBPASSWORD':             server_configuration.DBPASSWORD,
-        'DBROUSER':               server_configuration.DBROUSER,
-        'DBROPASSWORD':           server_configuration.DBROPASSWORD,
-        'DBHOST':                 server_configuration.DBHOST,
-        'DBPORT':                 server_configuration.DBPORT,
-        'DBTABLEPREFIX':          server_configuration.DBTABLEPREFIX,      
-        'RABBIT_HOST':            server_configuration.RABBIT_HOST,
-        'RABBIT_PORT':            server_configuration.RABBIT_PORT,
-        'RABBIT_WEB_API_PORT':    server_configuration.RABBIT_WEB_API_PORT,
-        'RABBIT_VHOST':           server_configuration.RABBIT_VHOST,
-        'RABBIT_ADMIN_USER':      server_configuration.RABBIT_ADMIN_USER,
-        'RABBIT_ADMIN_PASS':      server_configuration.RABBIT_ADMIN_PASS,
-        'RABBIT_WORKER_USER':     server_configuration.RABBIT_WORKER_USER,
-        'RABBIT_WORKER_PASS':     server_configuration.RABBIT_WORKER_PASS,
-        'RABBIT_WORKER_LOG_FILE': server_configuration.RABBIT_WORKER_LOG_FILE,
-        'METAX_AVAILABLE':        server_configuration.METAX_AVAILABLE,
-        'METAX_API_ROOT_URL':     server_configuration.METAX_API_ROOT_URL,
-        'METAX_API_RPC_URL':      server_configuration.METAX_API_RPC_URL,
-        'METAX_API_USER':         server_configuration.METAX_API_USER,
-        'METAX_API_PASS':         server_configuration.METAX_API_PASS
+        "CONFIG_SOURCE":           config_source,
+        "CONFIG_PATH":             config_path,
+        "PROJECT_USER_PREFIX":     "PSO_",
+        "STAGING_FOLDER_SUFFIX":   "+",
+        "MAX_FILE_COUNT":          5000,
+        "IDA_CLI_ROOT":            cli_root,
+
+        "IDA_ENVIRONMENT":         getattr(server_configuration, "IDA_ENVIRONMENT", "DEV"),
+        "DEBUG":                   getattr(server_configuration, "DEBUG", "false"),
+        "NO_FLUSH_AFTER_TESTS":    getattr(server_configuration, "NO_FLUSH_AFTER_TESTS", "false"),
+
+        "IDA_HOST":                ida_host,
+        "IDA_PROJECT":             getattr(server_configuration, "IDA_PROJECT", None),
+        "IDA_USERNAME":            getattr(server_configuration, "IDA_USERNAME", None),
+        "IDA_PASSWORD":            getattr(server_configuration, "IDA_PASSWORD", None),
+
+        "IDA_API_ROOT_URL":        getattr(server_configuration, "IDA_API_ROOT_URL", "%s/apps/ida/api" % ida_host),
+        "URL_BASE_IDA":            getattr(server_configuration, "URL_BASE_IDA", "%s/apps/ida" % ida_host),
+        "URL_BASE_SHARE":          getattr(server_configuration, "URL_BASE_SHARE", "%s/ocs/v1.php/apps/files_sharing/api/v1/shares" % ida_host),
+        "URL_BASE_FILE":           getattr(server_configuration, "URL_BASE_FILE", "%s/remote.php/webdav" % ida_host),
+        "URL_BASE_GROUP":          getattr(server_configuration, "URL_BASE_GROUP", "%s/ocs/v1.php/cloud/groups" % ida_host),
+
+        "TEST_USER_PASS":          getattr(server_configuration, "TEST_USER_PASS", "test"),
+        "HTTPD_USER":              getattr(server_configuration, "HTTPD_USER", "apache"),
+        "NC_ADMIN_USER":           getattr(server_configuration, "NC_ADMIN_USER", "admin"),
+        "NC_ADMIN_PASS":           getattr(server_configuration, "NC_ADMIN_PASS", None),
+
+        "ROOT":                    getattr(server_configuration, "ROOT", None),
+        "STORAGE_OC_DATA_ROOT":    getattr(server_configuration, "STORAGE_OC_DATA_ROOT", None),
+
+        "RUN_TESTS_IN_PRODUCTION": getattr(server_configuration, "RUN_TESTS_IN_PRODUCTION", None) # Really don't do this
     }
-    try:
-        config['NO_FLUSH_AFTER_TESTS'] = server_configuration.NO_FLUSH_AFTER_TESTS
-    except:
-        config['NO_FLUSH_AFTER_TESTS'] = 'false'
 
     return config
-
-

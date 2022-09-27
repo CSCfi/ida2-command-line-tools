@@ -21,39 +21,15 @@
 # @license  GNU Affero General Public License, version 3
 # @link     https://research.csc.fi/
 #--------------------------------------------------------------------------------
-#
-# The following configuration files are used by these automated tests and must
-# exist at the specified pathname:
-#
-# /var/ida/lib/constants.sh
-# /var/ida/config/config.sh
-#
-#--------------------------------------------------------------------------------
-# Load service constants and configuration settings
 
 SCRIPT_ROOT=`dirname "$(realpath $0)"`
+IDA_CLI_ROOT=`dirname "$SCRIPT_ROOT"`
 
-CONSTANTS_FILE="/var/ida/lib/constants.sh"
+export IDA_CLI_ROOT
 
-if [ -e $CONSTANTS_FILE ]
-then
-    . $CONSTANTS_FILE
-else
-    echo "The service constants file $CONSTANTS_FILE cannot be found. Aborting." >&2
-    exit 1
-fi
+#--------------------------------------------------------------------------------
 
-CONFIG_FILE="/var/ida/config/config.sh"
-
-if [ -e $CONFIG_FILE ]
-then
-    . $CONFIG_FILE
-else
-    echo "The configuration file $CONFIG_FILE cannot be found. Aborting." >&2
-    exit 1
-fi
-
-VENV="/var/ida/venv"
+VENV="$IDA_CLI_ROOT/tests/venv"
 
 if [ ! -d $VENV ]
 then
@@ -61,29 +37,12 @@ then
     exit 1
 fi
 
-if [ "$ROOT" = "" ]; then
-    echo "The configuration variable $ROOT has not been defined Aborting." >&2
-    exit 1
-fi
-
-#--------------------------------------------------------------------------------
-# Verify that we are not in the production environment
-
-if [ "$IDA_ENVIRONMENT" == "PRODUCTION" ]; then
-    echo "This script can not be run in a production environment. Aborting." >&2
-    exit 1
-fi
-
-#--------------------------------------------------------------------------------
-# Activate python environment
-
 source $VENV/bin/activate
 
 #--------------------------------------------------------------------------------
 # Execute tests per the provided command line arguments
 
-cd $SCRIPT_ROOT
-cd ..
+cd "$IDA_CLI_ROOT"
 
 python -W ignore -m unittest discover -f -q tests.cli
 
@@ -96,4 +55,3 @@ echo "======================================"
 echo "=== ALL EXECUTED TESTS SUCCESSFUL  ==="
 echo "======================================"
 echo ""
-

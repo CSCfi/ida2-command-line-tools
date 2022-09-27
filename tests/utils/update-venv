@@ -1,5 +1,5 @@
-#!/bin/bash
-#--------------------------------------------------------------------------------
+#!/usr/bin/env bash
+# --------------------------------------------------------------------------------
 # This file is part of the IDA research data storage service
 #
 # Copyright (C) 2022 Ministry of Education and Culture, Finland
@@ -20,12 +20,20 @@
 # @author   CSC - IT Center for Science Ltd., Espoo Finland <servicedesk@csc.fi>
 # @license  GNU Affero General Public License, version 3
 # @link     https://research.csc.fi/
-#--------------------------------------------------------------------------------
-#
-# This script deletes the curl cookie jar file if it exists.
-#
-#--------------------------------------------------------------------------------
+# --------------------------------------------------------------------------------
 
-rm $HOME/.ida-cookie-jar 2>/dev/null
-exit 0
+SCRIPT_ROOT=`dirname "$(realpath $0)"`
+TEST_ROOT=`dirname "$SCRIPT_ROOT"`
+
+cd $TEST_ROOT
+
+if [ ! -d $TEST_ROOT/venv ]; then
+    echo "The virtual environment does not exist!" >&2
+    exit 1
+fi
+
+source $TEST_ROOT/venv/bin/activate
+
+pip install --upgrade pip
+pip install -r $TEST_ROOT/requirements.txt
 
