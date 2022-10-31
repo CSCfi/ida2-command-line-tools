@@ -114,7 +114,6 @@ def load_configuration():
         "URL_BASE_GROUP":          getattr(server_configuration, "URL_BASE_GROUP", "%s/ocs/v1.php/cloud/groups" % ida_host),
 
         "TEST_USER_PASS":          getattr(server_configuration, "TEST_USER_PASS", "test"),
-        "HTTPD_USER":              getattr(server_configuration, "HTTPD_USER", "apache"),
         "NC_ADMIN_USER":           getattr(server_configuration, "NC_ADMIN_USER", "admin"),
         "NC_ADMIN_PASS":           getattr(server_configuration, "NC_ADMIN_PASS", None),
 
@@ -123,5 +122,10 @@ def load_configuration():
 
         "RUN_TESTS_IN_PRODUCTION": getattr(server_configuration, "RUN_TESTS_IN_PRODUCTION", None) # Really don't do this
     }
+
+    if os.path.exists("/etc/httpd/"):
+        config['HTTPD_USER'] = "apache"
+    else:
+        config['HTTPD_USER'] = "www-data"
 
     return config
