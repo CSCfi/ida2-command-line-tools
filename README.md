@@ -211,7 +211,7 @@ Fields included for all files, in either the staging or frozen areas:
 * pathname
 * area
 * type
-* size
+* size (in bytes)
 * encoding
 * modified
     
@@ -262,7 +262,7 @@ Fields included for all folders, in either the staging or frozen areas:
 * pathname
 * area
 * type
-* size
+* size (in bytes)
 * contents
 
 ### File Inventory
