@@ -70,9 +70,9 @@ fi
 
 #--------------------------------------------------------------------------------
 
-PROJECTS="test_project_cli"
-USERS="test_user_cli"
-BASIC_RELATIONS="test_user_cli:test_project_cli"
+PROJECTS="test_cli_project"
+USERS="test_cli_user"
+BASIC_RELATIONS="test_cli_user:test_cli_project"
 
 #--------------------------------------------------------------------------------
 
@@ -209,6 +209,8 @@ for PROJECT in $PROJECTS; do
     done
 done
 
+php $ROOT/nextcloud/cron.php
+
 #--------------------------------------------------------------------------------
 
 if [ "$1" = "flush" ]; then
@@ -248,3 +250,5 @@ for RELATION in $BASIC_RELATIONS; do
         success
     fi
 done
+
+php $ROOT/nextcloud/cron.php

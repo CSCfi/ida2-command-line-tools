@@ -22,7 +22,7 @@
 # @link https://research.csc.fi/
 #--------------------------------------------------------------------------------
 
-RELEASE_CHECKSUM="d4aa492cd6d05b79443e5204666f7d6a838308d644f076f88864a2569ebf74b1"
+RELEASE_CHECKSUM="3e5f400e399e837a0933a6163fb4fb74f4cf70cf9b949e0b9759a3d43b0d80a8"
 
 IDA_BETA_SCRIPT="false"
 
@@ -892,17 +892,10 @@ function execute-ida-info {
 }
 
 #--------------------------------------------------------------------------------
-# Load personal configuration file, if it exists...
-
-if [ -f "${IDA_CONFIG_FILE}" ]; then
-    . "$IDA_CONFIG_FILE"
-fi
-
-#--------------------------------------------------------------------------------
-# Load debug configuration file, if it exists...
+# Use debug configuration file in place of home configuration, if it exists...
 
 if [ -f $SCRIPT_DIR/.debug-config ]; then
-    . $SCRIPT_DIR/.debug-config
+    IDA_CONFIG_FILE="$SCRIPT_DIR/.debug-config"
 fi
 
 #--------------------------------------------------------------------------------
@@ -946,24 +939,13 @@ while [ "$1" != "" ]; do
             echo "$USAGE"
             exit 0;
             ;;
-        -p)
-            if [ "$2" = "" ]; then
-                echo "Error: Missing project name." >&2
-                exit 1
-            fi
-            IDA_PROJECT="$2"
-            shift;
-            shift;
-            ;;
         -c)
             if [ "$2" = "" ]; then
                 echo "Error: Missing configuration file pathname." >&2
                 exit 1
             fi
             IDA_CONFIG_FILE="$2"
-            if [ -f "${IDA_CONFIG_FILE}" ]; then
-                . "$IDA_CONFIG_FILE"
-            else
+            if [ ! -f "${IDA_CONFIG_FILE}" ]; then
                 echo "Error: Can't find specified configuration file." >&2
                 exit 1
             fi
@@ -983,13 +965,22 @@ while [ "$1" != "" ]; do
             shift;
             shift;
             ;;
+        -p)
+            if [ "$2" = "" ]; then
+                echo "Error: Missing project name." >&2
+                exit 1
+            fi
+            CLI_IDA_PROJECT="$2"
+            shift;
+            shift;
+            ;;
         -t)
             if [ "$2" = "" ]; then
                 echo "Error: Missing target host." >&2
                 exit 1
             fi
-            IDA_HOST=`echo "$2" | sed -e 's/\/$//' | grep '^http'`
-            if [ "$IDA_HOST" = "" ]; then
+            CLI_IDA_HOST=`echo "$2" | sed -e 's/\/$//' | grep '^http'`
+            if [ "$CLI_IDA_HOST" = "" ]; then
                 echo "Error: Invalid target host. Must begin with 'http(s)://'" >&2
                 exit 1
             fi
@@ -1026,6 +1017,26 @@ while [ "$1" != "" ]; do
             ;;
     esac
 done
+
+#--------------------------------------------------------------------------------
+
+# Load the configuration file, either the user's home configuration file, or a
+# debug configuration file, or a file specified with the -c parameter; but only
+# if the configuration file exists
+
+if [ -f "${IDA_CONFIG_FILE}" ]; then
+    . "$IDA_CONFIG_FILE"
+fi
+
+# Apply command line overrides, if specified, for project and host
+
+if [ ! -z "$CLI_IDA_PROJECT" ]; then
+    IDA_PROJECT="$CLI_IDA_PROJECT"
+fi
+
+if [ ! -z "$CLI_IDA_HOST" ]; then
+    IDA_HOST="$CLI_IDA_HOST"
+fi
 
 #--------------------------------------------------------------------------------
 # Verify correct number of pathnames are specified for action...
@@ -1123,7 +1134,7 @@ if [ "$IDA_HOST" = "" ]; then
 fi
 
 #--------------------------------------------------------------------------------
-# If a netrc file exists, and neiter username nor password are defined in
+# If a netrc file exists, and neither username nor password are defined in
 # environment variables, which will override any netrc definition, we will
 # assume that the user has defined their IDA credentials using netrc.
 

@@ -65,6 +65,13 @@ username and password credentials for the specified IDA host in `$HOME/.netrc`,
 as documented in the command line tool user guide `README.md` in the root of
 this git repository.
 
+If user-only or special configuration settings are needed, the special test
+configuration file `tests/config/config.sh` can be created, which if present,
+will override all of the above configuration options. This can be useful for
+testing user-only test execution on a host where there is an installation of 
+IDA, but where the IDA configuration should not be used, or to disregard any
+personal configuration settings in one's home directory for the purpose of
+executing the automated tests. 
 
 # Executing the Tests
 

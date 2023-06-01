@@ -47,7 +47,6 @@ import time
 from pathlib import Path
 from tests.common.utils import load_configuration
 
-
 class TestIdaCli(unittest.TestCase):
 
     @classmethod
@@ -73,15 +72,15 @@ class TestIdaCli(unittest.TestCase):
         self.ida_host = self.config["IDA_HOST"]
         self.ida_api = self.config["IDA_API_ROOT_URL"]
 
-        config_source = self.config["CONFIG_SOURCE"]
+        self.config_source = self.config["CONFIG_SOURCE"]
 
-        if config_source == "IDA":
-            self.test_project_name = "test_project_cli"
-            self.test_user_name = "test_user_cli"
+        if self.config_source == "IDA":
+            self.test_project_name = "test_cli_project"
+            self.test_user_name = "test_cli_user"
             self.test_user_pass = self.config["TEST_USER_PASS"]
             self.admin_user_name = self.config["NC_ADMIN_USER"]
             self.admin_user_pass = self.config["NC_ADMIN_PASS"]
-        else: # "TEST" or "CLI"
+        else: # "TEST" or "HOME"
             self.test_project_name = self.config["IDA_PROJECT"]
             self.test_user_name = self.config.get("IDA_USERNAME", None)
             self.test_user_pass = self.config.get("IDA_PASSWORD", None)
@@ -101,7 +100,7 @@ class TestIdaCli(unittest.TestCase):
 
         # Adjust authentication if netrc will be used, due to no username/password defined in configuration
         self.netrc = False
-        if config_source != "IDA" and self.test_user_name == None and self.test_user_pass == None:
+        if self.config_source == "HOME" and self.test_user_name == None and self.test_user_pass == None:
             self.netrc = True
             self.test_user_auth = None
 
@@ -115,7 +114,9 @@ class TestIdaCli(unittest.TestCase):
         path = Path(self.cli_cmd)
         self.assertTrue(path.is_file())
 
-        # Prefix IDA CLI script pathname with test user password from configuration if netrc not being used
+        # Prefix IDA CLI script pathname with user password from configuration if netrc not being used.
+        # This prevents a user's actual password taken from a home configuration from being included in
+        # any of the temporary configuration files generated as part of these tests
         if not self.netrc:
             self.cli_cmd = "IDA_PASSWORD=\"%s\" %s" % (self.test_user_pass, self.cli_cmd)
 
@@ -129,9 +130,10 @@ class TestIdaCli(unittest.TestCase):
             shutil.rmtree(self.tempdir, ignore_errors=True)
         path.mkdir()
 
-        # Determine whether IDA is installed locally. If not, then a limited subset of tests will be run against a remote IDA instance
+        # If the loaded configuration was from a locally installed version of IDA, then the full scope of localized
+        # tests will be run; else, only a limited subset of tests will be run against a remote IDA instance
         
-        self.run_localized_tests = self.ida_root != None and Path("%s/nextcloud" % self.ida_root).is_dir()
+        self.run_localized_tests = self.config_source == "IDA"
 
         # Determine whether trusted tests should be run, based on defined credentials
         
@@ -140,7 +142,7 @@ class TestIdaCli(unittest.TestCase):
         if self.config.get("NC_ADMIN_PASS", None) != None:
             self.run_trusted_tests = True
 
-        print("CONFIG_SOURCE:           %s" % self.config["CONFIG_SOURCE"])
+        print("CONFIG_SOURCE:           %s" % self.config_source)
         print("CONFIG_PATH:             %s" % self.config["CONFIG_PATH"])
         print("IDA_ENVIRONMENT:         %s" % self.config["IDA_ENVIRONMENT"])
         print("IDA CLI_ROOT:            %s" % self.cli_root)
@@ -153,6 +155,7 @@ class TestIdaCli(unittest.TestCase):
         print("NETRC:                   %s" % self.netrc)
         print("RUN LOCALIZED TESTS:     %s" % self.run_localized_tests)
         print("RUN TRUSTED TESTS:       %s" % self.run_trusted_tests)
+        print("CLI CMD:                 %s" % self.cli_cmd)
 
         if (self.config.get("IDA_ENVIRONMENT", None) == "PRODUCTION") or ("ida.fairdata.fi" in self.ida_host) or ("ida.fairdata.fi" in self.ida_api):
             if self.config.get("RUN_TESTS_IN_PRODUCTION", None) == "I SWEAR I KNOW WHAT I AM DOING AND ACCEPT ALL RESPONSIBILITY":
@@ -188,23 +191,16 @@ class TestIdaCli(unittest.TestCase):
         f = open("%s/ida-config" % self.tempdir, "w")
         f.write("IDA_HOST=\"%s\"\n" % self.ida_host)
         f.write("IDA_PROJECT=\"%s\"\n" % self.test_project_name)
-        if not self.netrc:
-            f.write("IDA_USERNAME=\"%s\"\n" % self.test_user_name)
+        f.write("IDA_USERNAME=\"%s\"\n" % self.test_user_name)
+        if self.config_source != "HOME":
+            f.write("IDA_PASSWORD=\"%s\"\n" % self.test_user_pass)
         f.close()
 
         f = open("%s/ida-config-invalid-username" % self.tempdir, "w")
         f.write("IDA_HOST=\"%s\"\n" % self.ida_host)
         f.write("IDA_PROJECT=\"%s\"\n" % self.test_project_name)
         f.write("IDA_USERNAME=\"invalid\"\n")
-        if self.config["CONFIG_SOURCE"] == "IDA":
-            # The tests using this config file work most correctly when the IDA_PASSWORD is set
-            # to a valid value, but will work even if the password is also invalid. We only set
-            # the password if running off of an IDA service configuration, else we protect the
-            # password defined in the non-service configuration, which may be the user's actual
-            # password or application token.
-            f.write("IDA_PASSWORD=\"%s\"\n" % self.test_user_pass)
-        else:
-            f.write("IDA_PASSWORD=\"secret\"\n")
+        f.write("IDA_PASSWORD=\"not_used\"\n")
         f.close()
 
         f = open("%s/ida-config-invalid-password" % self.tempdir, "w")
@@ -238,7 +234,7 @@ class TestIdaCli(unittest.TestCase):
 
             if self.success and self.config.get("NO_FLUSH_AFTER_TESTS", "false") == "false":
 
-                shutil.rmtree(self.tempdir, ignore_errors=True)
+                #shutil.rmtree(self.tempdir, ignore_errors=True)
 
                 cmd = "sudo -u %s %s/tests/utils/initialize-test-accounts flush" % (self.config["HTTPD_USER"], self.cli_root)
                 result = os.system(cmd)

@@ -79,7 +79,7 @@ def load_configuration():
     if not config_located:
         config_path = "%s/.ida-config" % os.environ["HOME"]
         if Path(config_path).is_file():
-            config_source = "CLI" # IDA CLI config
+            config_source = "HOME" # IDA user home config
             config_located = True
 
     if not config_located:
