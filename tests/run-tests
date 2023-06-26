@@ -22,7 +22,22 @@
 # @link     https://research.csc.fi/
 #--------------------------------------------------------------------------------
 
-SCRIPT_ROOT=`dirname "$(realpath $0)"`
+# Only use the core os versions of commands
+
+PATH="/usr/bin:/bin:/usr/sbin:/sbin"
+export PATH
+
+#--------------------------------------------------------------------------------
+
+function portable_realpath() {
+    if [[ "$OSTYPE" = "darwin"* ]]; then
+        [[ $1 = /* ]] && echo "$1" || echo "$(cd "$(dirname "$1")"; pwd)/$(basename "$1")"
+    else
+        realpath "$1"
+    fi
+}
+
+SCRIPT_ROOT=`dirname "$(portable_realpath $0)"`
 IDA_CLI_ROOT=`dirname "$SCRIPT_ROOT"`
 
 export IDA_CLI_ROOT
@@ -40,12 +55,10 @@ fi
 source $VENV/bin/activate
 
 #--------------------------------------------------------------------------------
-# Execute tests per the provided command line arguments
 
 cd "$IDA_CLI_ROOT"
 
 python -W ignore -m unittest discover -f -q tests.cli
-
 if [ $? -ne 0 ]; then
     exit 1
 fi

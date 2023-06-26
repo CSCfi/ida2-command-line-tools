@@ -35,6 +35,13 @@
 #
 #--------------------------------------------------------------------------------
 
+# Only use the core os versions of commands
+
+PATH="/usr/bin:/bin:/usr/sbin:/sbin"
+export PATH
+
+#--------------------------------------------------------------------------------
+
 . "/var/ida/config/config.sh"
 . "/var/ida/lib/constants.sh"
 

@@ -22,7 +22,22 @@
 # @link     https://research.csc.fi/
 # --------------------------------------------------------------------------------
 
-SCRIPT_ROOT=`dirname "$(realpath $0)"`
+# Only use the core os versions of commands
+
+PATH="/usr/bin:/bin:/usr/sbin:/sbin"
+export PATH
+
+#--------------------------------------------------------------------------------
+
+function portable_realpath() {
+    if [[ "$OSTYPE" = "darwin"* ]]; then
+        [[ $1 = /* ]] && echo "$1" || echo "$(cd "$(dirname "$1")"; pwd)/$(basename "$1")"
+    else
+        realpath "$1"
+    fi
+}
+
+SCRIPT_ROOT=`dirname "$(portable_realpath $0)"`
 TEST_ROOT=`dirname "$SCRIPT_ROOT"`
 
 PYTHON="/opt/fairdata/python3/bin/python"

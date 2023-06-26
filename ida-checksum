@@ -28,6 +28,12 @@ Usage: ida-checksum -h
 "
 
 #--------------------------------------------------------------------------------
+# Only use the core os versions of commands
+
+PATH="/usr/bin:/bin:/usr/sbin:/sbin"
+export PATH
+
+#--------------------------------------------------------------------------------
 # Verify that required commands, tools, and applications are available...
 
 if [[ "$OSTYPE" == "darwin"* ]]; then

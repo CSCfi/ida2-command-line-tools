@@ -1,6 +1,6 @@
 The following checksum corresponds to the latest release of the 'ida' script:
 
-3e5f400e399e837a0933a6163fb4fb74f4cf70cf9b949e0b9759a3d43b0d80a8
+    5a3ae66edee5e48911ebad62afbe6d43ad321d7f535364f061bcf2162fd254e8
 
 It should agree with the checksum reported when executing 'ida -h'.
 

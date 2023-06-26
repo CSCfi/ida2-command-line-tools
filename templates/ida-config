@@ -1,2 +1,4 @@
 IDA_HOST="https://ida.fairdata.fi"
-IDA_PROJECT="MyProject"
+IDA_PROJECT="My_CSC_Project"
+IDA_USERNAME="My_CSC_Username"
+IDA_PASSWORD="My_IDA_Application_Password"
