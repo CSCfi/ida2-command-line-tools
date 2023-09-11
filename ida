@@ -22,9 +22,9 @@
 # @link https://research.csc.fi/
 #--------------------------------------------------------------------------------
 
-RELEASE_CHECKSUM="5a3ae66edee5e48911ebad62afbe6d43ad321d7f535364f061bcf2162fd254e8"
+RELEASE_CHECKSUM="d1b76123bb8c311abb677b3cae11b73d4a04d133246cd7b3eedb5cc30c06b0d0"
 
-IDA_BETA_SCRIPT="false"
+ALLOW_MODIFIED_SCRIPT="false" # Set to "true" to allow execution of a modified script
 
 #--------------------------------------------------------------------------------
 # Only use the core os versions of commands
@@ -121,12 +121,6 @@ Usage: ida [-h]
        checksum: ${CURRENT_CHECKSUM}
 "
 
-if [ "$IDA_BETA_SCRIPT" = "true" ]; then
-    USAGE="$USAGE
-       *** UNOFFICIAL VERSION - USE AT YOUR OWN RISK! ***
-"
-fi
-
 if [ "$CURRENT_CHECKSUM" != "$RELEASE_CHECKSUM" ]; then
     USAGE="$USAGE
        *** MODIFIED VERSION - USE AT YOUR OWN RISK! ***
@@ -159,12 +153,13 @@ if [ -n "$IDA_PASSWORD" ]; then
     IDA_PASSWORD_SOURCE="env"
 fi
 
+IDA_SKIPPED_FILES="false"
+
 #--------------------------------------------------------------------------------
 
 function check_script_integrity {
-
-    if [ ! -f $SCRIPT_DIR/.debug ]; then
-        if [ "$CURRENT_CHECKSUM" != "$RELEASE_CHECKSUM" ]; then
+    if [ "$CURRENT_CHECKSUM" != "$RELEASE_CHECKSUM" ]; then
+        if [ "$ALLOW_MODIFIED_SCRIPT" != "true" ]; then
             echo "Error: Checksum of current script $CURRENT_CHECKSUM does not match checksum of released version: $RELEASE_CHECKSUM" >&2
             exit 1
         fi
@@ -520,7 +515,7 @@ function execute_ida_upload {
             echo "find \"$LOCAL_PATHNAME\" -type d" >&2
         fi
 
-        find "$LOCAL_PATHNAME" -type d | while read DIRNAME; do
+        while read DIRNAME; do
 
             if [ "$DIRNAME" != "$LOCAL_PATHNAME" ]; then
                 TARGET_DIRNAME=$(echo "$DIRNAME" | sed -e "s/^.\{$LOCAL_PATHNAME_LENGTH\}//" | sed -e 's/^\///')
@@ -549,7 +544,8 @@ function execute_ida_upload {
                     curl $IDA_CURL_OPS -X MKCOL "${IDA_HOST}${IDA_WEBDAV}/${ENCODED_IDA_STAGING_FOLDER}/${ENCODED_TARGET_PATHNAME}" 2>&1 >/dev/null <<< "$IDA_CREDENTIALS"
                 fi
             fi
-        done
+
+        done < <(find "$LOCAL_PATHNAME" -type d)
 
         # Upload all files in directory tree
 
@@ -561,7 +557,7 @@ function execute_ida_upload {
             echo "find \"$LOCAL_PATHNAME\" -type f $FIND_EXCLUDE" >&2
         fi
 
-        find "$LOCAL_PATHNAME" -type f $FIND_EXCLUDE | while read PATHNAME; do
+        while read PATHNAME; do
 
             TARGET_FILENAME=$(echo "$PATHNAME" | sed -e "s/^.\{$LOCAL_PATHNAME_LENGTH\}//" | sed -e 's/^\///')
 
@@ -570,7 +566,7 @@ function execute_ida_upload {
 
             execute_ida_upload_file
 
-        done
+        done < <(find "$LOCAL_PATHNAME" -type f $FIND_EXCLUDE)
 
     # Else, upload individual file
 
@@ -582,8 +578,14 @@ function execute_ida_upload {
         execute_ida_upload_file
     fi
 
+    if [ "$IDA_SKIPPED_FILES" = "true" ]; then
+        echo "WARNING: one or more files were skipped"
+    fi
+
     if [ "$IDA_VERBOSE" = "true" ]; then
-        echo "${IDA_DRY_RUN}Target uploaded successfully" >&2
+        if [ "$IDA_SKIPPED_FILES" = "false" ]; then
+            echo "${IDA_DRY_RUN}Target uploaded successfully" >&2
+        fi
     fi
 }
 
@@ -621,6 +623,8 @@ function execute_ida_upload_file {
         if [ -n "$SIZE" ]; then
 
             IDA_UPLOAD_FILE_ACTION="skip"
+
+            IDA_SKIPPED_FILES="true"
 
             if [ "$IDA_VERBOSE" = "true" ]; then
                 echo "Skipping existing file $IDA_UPLOAD_FILE_LOCAL_PATHNAME at /$IDA_STAGING_FOLDER/$IDA_UPLOAD_FILE_TARGET_PATHNAME" >&2
@@ -727,7 +731,7 @@ function execute_ida_validate {
             echo "find \"$LOCAL_PATHNAME\" -type f $FIND_EXCLUDE" >&2
         fi
 
-        find "$LOCAL_PATHNAME" -type f $FIND_EXCLUDE | while read PATHNAME; do
+        while read PATHNAME; do
 
             TARGET_FILENAME=$(echo "$PATHNAME" | sed -e "s/^.\{$LOCAL_PATHNAME_LENGTH\}//" | sed -e 's/^\///')
 
@@ -735,7 +739,8 @@ function execute_ida_validate {
             IDA_VALIDATE_FILE_TARGET_PATHNAME="$TARGET_PATHNAME/$TARGET_FILENAME"
 
             execute_ida_validate_file
-        done
+
+        done < <(find "$LOCAL_PATHNAME" -type f $FIND_EXCLUDE)
 
     # Else, validate individual file
 
@@ -1288,13 +1293,6 @@ function execute_ida_inventory {
 }
 
 #--------------------------------------------------------------------------------
-# Use debug configuration file in place of home configuration, if it exists...
-
-if [ -f $SCRIPT_DIR/.debug-config ]; then
-    IDA_CONFIG_FILE="$SCRIPT_DIR/.debug-config"
-fi
-
-#--------------------------------------------------------------------------------
 # Output script usage if requested
 
 if [ "$1" = "" -o "$1" = "-h" ]; then
@@ -1796,7 +1794,7 @@ esac
 #--------------------------------------------------------------------------------
 # Verify the project name is lexically valid
 
-PROJECT_NAME_CHECK=$(echo "$IDA_PROJECT" | grep '[^a-z0-9_]')
+PROJECT_NAME_CHECK=$(echo "$IDA_PROJECT" | grep '[^a-zA-Z0-9_]')
 
 if [ "$PROJECT_NAME_CHECK" != "" ]; then
     echo "Error: Invalid characters in project name" >&2

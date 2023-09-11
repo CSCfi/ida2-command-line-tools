@@ -123,7 +123,9 @@ via a configuration file, or provided via command line arguments.
 The `ida` script will look for and load a file `$HOME/.ida-config` if it exists in your home directory.
 
 You can copy the provided example `ida-config` file from the `templates` subdirectory to your home directory
-as `$HOME/.ida-config` and edit it accordingly.
+as `$HOME/.ida-config` and edit it accordingly. E.g.:
+
+    curl -LJ "https://raw.githubusercontent.com/CSCfi/ida2-command-line-tools/master/templates/ida-config" -o $HOME/.ida-config
 
 Be sure to set the permissions of your configuration file securely so its contents are not visible to others:
 

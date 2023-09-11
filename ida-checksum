@@ -68,11 +68,6 @@ fi
 
 LOCAL_PATHNAME="$1"
 
-if [ ! -f "$LOCAL_PATHNAME" ]; then
-    echo "Error: Local pathname must correspond to a file." >&2
-    exit 1
-fi
-
 #--------------------------------------------------------------------------------
 # Generate and output SHA256 checksum URI
 

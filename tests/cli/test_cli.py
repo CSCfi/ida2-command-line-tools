@@ -842,7 +842,7 @@ class TestIdaCli(unittest.TestCase):
             output = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT).decode(sys.stdout.encoding)
         except subprocess.CalledProcessError as error:
             self.fail(error.output.decode(sys.stdout.encoding))
-        self.assertIn("Target uploaded successfully", output)
+        self.assertIn("WARNING: one or more files were skipped", output)
         self.assertIn("Skipping existing file %s/Contact.txt at /%s+/test%s/Contact.txt" % (self.testdata, self.test_project_name, self.token), output)
         if self.run_localized_tests:
             path = Path("%s/test%s/Contact.txt" % (self.staging, self.token))
@@ -868,6 +868,7 @@ class TestIdaCli(unittest.TestCase):
             self.fail(error.output.decode(sys.stdout.encoding))
         self.assertIn("Skipping existing file %s/License.txt at /%s+/test%s/Contact.txt" % (self.testdata, self.test_project_name, self.token), output)
         self.assertIn("WARNING: local file %s/License.txt size 446 does not match IDA file size 2263 at /%s+/test%s/Contact.txt" % (self.testdata, self.test_project_name, self.token), output)
+        self.assertIn("WARNING: one or more files were skipped", output)
 
         print("Force upload existing file with local file with different file size than in IDA")
         cmd = "%s upload %s -F /test%s/Contact.txt %s/License.txt" % (self.cli_cmd, self.args, self.token, self.testdata)
