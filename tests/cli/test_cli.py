@@ -1579,6 +1579,7 @@ class TestIdaCli(unittest.TestCase):
         self.assertIn("size:       446", output)
         self.assertIn("checksum:   sha256:56293a80e0394d252e995f2debccea8223e4b5b2b150bee212729b3b39ac4d46", output)
         self.assertIn("encoding:   application/octet-stream", output)
+        self.assertIn("uploaded:   ", output)
         self.assertIn("modified:   ", output)
 
         print("Retrieve file info from staging area as JSON")
@@ -1594,6 +1595,7 @@ class TestIdaCli(unittest.TestCase):
         self.assertIn("\"size\": 446", output)
         self.assertIn("\"checksum\": \"sha256:56293a80e0394d252e995f2debccea8223e4b5b2b150bee212729b3b39ac4d46\"", output)
         self.assertIn("\"encoding\": \"application/octet-stream\"", output)
+        self.assertIn("\"uploaded\": ", output)
         self.assertIn("\"modified\": ", output)
 
         print("Verify no verbose or debug output to stdout from info action")
@@ -1652,6 +1654,7 @@ class TestIdaCli(unittest.TestCase):
         self.assertIn("checksum:   sha256:56293a80e0394d252e995f2debccea8223e4b5b2b150bee212729b3b39ac4d46", output)
         self.assertIn("encoding:   application/octet-stream", output)
         self.assertIn("pid:        ", output)
+        self.assertIn("uploaded:   ", output)
         self.assertIn("modified:   ", output)
         self.assertIn("frozen:     ", output)
 

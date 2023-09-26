@@ -22,7 +22,7 @@
 # @link https://research.csc.fi/
 #--------------------------------------------------------------------------------
 
-RELEASE_CHECKSUM="d1b76123bb8c311abb677b3cae11b73d4a04d133246cd7b3eedb5cc30c06b0d0"
+RELEASE_CHECKSUM="aa9654a686f81ec637abc189b4c9e8fb09ec55853c3cb63d402b1cc23094d50a"
 
 ALLOW_MODIFIED_SCRIPT="false" # Set to "true" to allow execution of a modified script
 
@@ -154,6 +154,11 @@ if [ -n "$IDA_PASSWORD" ]; then
 fi
 
 IDA_SKIPPED_FILES="false"
+
+#--------------------------------------------------------------------------------
+
+PROPFIND_HEADER="Content-Type: text/xml; charset=\"utf-8\""
+PROPFIND_BODY="<?xml version=\"1.0\"?><d:propfind xmlns:d=\"DAV:\" xmlns:oc=\"http://owncloud.org/ns\" xmlns:nc=\"http://nextcloud.org/ns\"><d:prop><d:resourcetype /><d:getcontenttype /><d:getcontentlength /><d:getlastmodified /><d:quota-used-bytes /><oc:checksums /><nc:upload_time /></d:prop></d:propfind>"
 
 #--------------------------------------------------------------------------------
 
@@ -394,10 +399,10 @@ function check_target_type {
     fi
 
     if [ "$IDA_DEBUG" = "true" ]; then
-        echo "curl $IDA_CURL_OPS -X PROPFIND \"${IDA_HOST}${IDA_WEBDAV}/${ENCODED_IDA_TARGET_FOLDER}/${1}\" 2>&1 <<< \"$IDA_DEBUG_CREDENTIALS\" | grep '<d:resourcetype><d:collection/></d:resourcetype>'" >&2
+        echo "curl $IDA_CURL_OPS -X PROPFIND -H '$PROPFIND_HEADER' -d '$PROPFIND_BODY' \"${IDA_HOST}${IDA_WEBDAV}/${ENCODED_IDA_TARGET_FOLDER}/${1}\" 2>&1 <<< \"$IDA_DEBUG_CREDENTIALS\" | grep '<d:resourcetype><d:collection/></d:resourcetype>'" >&2
     fi
 
-    OUTPUT=$(curl $IDA_CURL_OPS -X PROPFIND "${IDA_HOST}${IDA_WEBDAV}/${ENCODED_IDA_TARGET_FOLDER}/${1}" 2>&1 <<< "$IDA_CREDENTIALS" | grep '<d:resourcetype><d:collection/></d:resourcetype>')
+    OUTPUT=$(curl $IDA_CURL_OPS -X PROPFIND -H "$PROPFIND_HEADER" -d "$PROPFIND_BODY" "${IDA_HOST}${IDA_WEBDAV}/${ENCODED_IDA_TARGET_FOLDER}/${1}" 2>&1 <<< "$IDA_CREDENTIALS" | grep '<d:resourcetype><d:collection/></d:resourcetype>')
 
     if [ -n "$OUTPUT" ]; then
         TARGET_TYPE="folder"
@@ -603,10 +608,10 @@ function execute_ida_upload_file {
     if [ "$IDA_FORCE_UPLOAD" != "true" ]; then
 
         if [ "$IDA_DEBUG" = "true" ]; then
-            echo "curl $IDA_CURL_OPS -X PROPFIND \"${IDA_HOST}${IDA_WEBDAV}/${ENCODED_IDA_STAGING_FOLDER}/${ENCODED_TARGET_PATHNAME}\" 2>/dev/null <<< \"$IDA_DEBUG_CREDENTIALS\"" >&2
+            echo "curl $IDA_CURL_OPS -X PROPFIND -H '$PROPFIND_HEADER' -d '$PROPFIND_BODY' \"${IDA_HOST}${IDA_WEBDAV}/${ENCODED_IDA_STAGING_FOLDER}/${ENCODED_TARGET_PATHNAME}\" 2>/dev/null <<< \"$IDA_DEBUG_CREDENTIALS\"" >&2
         fi
 
-        OUTPUT=$(curl $IDA_CURL_OPS -X PROPFIND "${IDA_HOST}${IDA_WEBDAV}/${ENCODED_IDA_STAGING_FOLDER}/${ENCODED_TARGET_PATHNAME}" 2>/dev/null <<< "$IDA_CREDENTIALS")
+        OUTPUT=$(curl $IDA_CURL_OPS -X PROPFIND -H "$PROPFIND_HEADER" -d "$PROPFIND_BODY" "${IDA_HOST}${IDA_WEBDAV}/${ENCODED_IDA_STAGING_FOLDER}/${ENCODED_TARGET_PATHNAME}" 2>/dev/null <<< "$IDA_CREDENTIALS")
 
         if [[ "$OSTYPE" = "darwin"* ]]; then
             OUTPUT=$(echo "$OUTPUT" | sed -e $'s/</\\\n</g')
@@ -675,13 +680,15 @@ function execute_ida_upload_file {
             IDA_UPLOAD_FILE_LOCAL_CHECKSUM="(dry-run)"
         fi
 
+        MODIFIED=`stat -c "%Y" "$IDA_UPLOAD_FILE_LOCAL_PATHNAME"`
+
         if [ "$IDA_DEBUG" = "true" ]; then
-            echo "curl $IDA_CURL_OPS -X PUT -o /dev/null -w '%{http_code}' -H "OC-Checksum:sha256:$IDA_UPLOAD_FILE_LOCAL_CHECKSUM" -T \"$IDA_UPLOAD_FILE_LOCAL_PATHNAME\" \"${IDA_HOST}${IDA_WEBDAV}/${ENCODED_IDA_STAGING_FOLDER}/${ENCODED_TARGET_PATHNAME}\" <<< \"$IDA_DEBUG_CREDENTIALS\"" >&2
+            echo "curl $IDA_CURL_OPS -X PUT -o /dev/null -w '%{http_code}' -H 'X-OC-Mtime: $MODIFIED' -H 'OC-Checksum:sha256:$IDA_UPLOAD_FILE_LOCAL_CHECKSUM' -T \"$IDA_UPLOAD_FILE_LOCAL_PATHNAME\" \"${IDA_HOST}${IDA_WEBDAV}/${ENCODED_IDA_STAGING_FOLDER}/${ENCODED_TARGET_PATHNAME}\" <<< \"$IDA_DEBUG_CREDENTIALS\"" >&2
         fi
 
         if [ "$IDA_EXECUTE_ACTION" = "true" ]; then
 
-            OUTPUT=$(curl $IDA_CURL_OPS -X PUT -o /dev/null -w '%{http_code}' -H "OC-Checksum:SHA256:$IDA_UPLOAD_FILE_LOCAL_CHECKSUM" -T "$IDA_UPLOAD_FILE_LOCAL_PATHNAME" "${IDA_HOST}${IDA_WEBDAV}/${ENCODED_IDA_STAGING_FOLDER}/${ENCODED_TARGET_PATHNAME}" <<< "$IDA_CREDENTIALS")
+            OUTPUT=$(curl $IDA_CURL_OPS -X PUT -o /dev/null -w '%{http_code}' -H "X-OC-Mtime: $MODIFIED" -H "OC-Checksum:SHA256:$IDA_UPLOAD_FILE_LOCAL_CHECKSUM" -T "$IDA_UPLOAD_FILE_LOCAL_PATHNAME" "${IDA_HOST}${IDA_WEBDAV}/${ENCODED_IDA_STAGING_FOLDER}/${ENCODED_TARGET_PATHNAME}" <<< "$IDA_CREDENTIALS")
 
             if [[ ${OUTPUT::1} != "2" ]]; then
                 echo "Error: PUT request failed for '/${ENCODED_IDA_STAGING_FOLDER}/${ENCODED_TARGET_PATHNAME}': ${OUTPUT}" >&2
@@ -763,10 +770,10 @@ function execute_ida_validate_file {
     ENCODED_TARGET_PATHNAME=$(url_encode "$IDA_VALIDATE_FILE_TARGET_PATHNAME")
 
     if [ "$IDA_DEBUG" = "true" ]; then
-        echo "curl $IDA_CURL_OPS -X PROPFIND \"${IDA_HOST}${IDA_WEBDAV}/${ENCODED_IDA_TARGET_FOLDER}/${ENCODED_TARGET_PATHNAME}\" 2>/dev/null <<< \"$IDA_DEBUG_CREDENTIALS\"" >&2
+        echo "curl $IDA_CURL_OPS -X PROPFIND -H '$PROPFIND_HEADER' -d '$PROPFIND_BODY' \"${IDA_HOST}${IDA_WEBDAV}/${ENCODED_IDA_TARGET_FOLDER}/${ENCODED_TARGET_PATHNAME}\" 2>/dev/null <<< \"$IDA_DEBUG_CREDENTIALS\"" >&2
     fi
 
-    OUTPUT=$(curl $IDA_CURL_OPS -X PROPFIND "${IDA_HOST}${IDA_WEBDAV}/${ENCODED_IDA_TARGET_FOLDER}/${ENCODED_TARGET_PATHNAME}" 2>/dev/null <<< "$IDA_CREDENTIALS")
+    OUTPUT=$(curl $IDA_CURL_OPS -X PROPFIND -H "$PROPFIND_HEADER" -d "$PROPFIND_BODY" "${IDA_HOST}${IDA_WEBDAV}/${ENCODED_IDA_TARGET_FOLDER}/${ENCODED_TARGET_PATHNAME}" 2>/dev/null <<< "$IDA_CREDENTIALS")
 
     if [[ "$OSTYPE" = "darwin"* ]]; then
         OUTPUT=$(echo "$OUTPUT" | sed -e $'s/</\\\n</g')
@@ -1050,10 +1057,10 @@ function execute_ida_info {
     verify_target_exists "$ENCODED_TARGET_PATHNAME"
 
     if [ "$IDA_DEBUG" = "true" ]; then
-        echo "curl $IDA_CURL_OPS -X PROPFIND \"${IDA_HOST}${IDA_WEBDAV}/${ENCODED_IDA_TARGET_FOLDER}/${ENCODED_TARGET_PATHNAME}\" 2>&1 <<< \"$IDA_DEBUG_CREDENTIALS\"" >&2
+        echo "curl $IDA_CURL_OPS -X PROPFIND -H '$PROPFIND_HEADER' -d '$PROPFIND_BODY' \"${IDA_HOST}${IDA_WEBDAV}/${ENCODED_IDA_TARGET_FOLDER}/${ENCODED_TARGET_PATHNAME}\" 2>&1 <<< \"$IDA_DEBUG_CREDENTIALS\"" >&2
     fi
 
-    OUTPUT=$(curl $IDA_CURL_OPS -X PROPFIND "${IDA_HOST}${IDA_WEBDAV}/${ENCODED_IDA_TARGET_FOLDER}/${ENCODED_TARGET_PATHNAME}" 2>&1 <<< "$IDA_CREDENTIALS")
+    OUTPUT=$(curl $IDA_CURL_OPS -X PROPFIND -H "$PROPFIND_HEADER" -d "$PROPFIND_BODY" "${IDA_HOST}${IDA_WEBDAV}/${ENCODED_IDA_TARGET_FOLDER}/${ENCODED_TARGET_PATHNAME}" 2>&1 <<< "$IDA_CREDENTIALS")
 
     if [ "$IDA_DEBUG" = "true" ]; then
         echo "PROPFIND: $OUTPUT" >&2
@@ -1122,16 +1129,17 @@ function execute_ida_info {
         fi
 
         if [ -z "$CHECKSUM" ]; then
-
-            OUTPUT=$(curl $IDA_CURL_OPS -X PROPFIND -d '<?xml version="1.0"?> <d:propfind  xmlns:d="DAV:" xmlns:oc="http://owncloud.org/ns"> <d:prop> <oc:checksums/> </d:prop> </d:propfind>' "${IDA_HOST}${IDA_WEBDAV}/${ENCODED_IDA_TARGET_FOLDER}/${ENCODED_TARGET_PATHNAME}" 2>&1 <<< "$IDA_CREDENTIALS")
-
-            if [[ "$OSTYPE" = "darwin"* ]]; then
-                OUTPUT=$(echo "$OUTPUT" | sed -e $'s/</\\\n</g')
-            else
-                OUTPUT=$(echo "$OUTPUT" | sed -e 's/</\n</g')
-            fi
-
             CHECKSUM=$(echo "$OUTPUT" | grep "<oc:checksum>" | head -1 | sed -e 's/^.*>//' | tr '[A-Z]' '[a-z]')
+        fi
+
+        UPLOADED=$(echo "$OUTPUT" | grep "<nc:upload_time>" | head -1 | sed -e 's/^.*>//' | grep -v "0")
+        if [ "$UPLOADED" ]; then
+            UPLOADED=$(date -u -d "@$UPLOADED" +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null)
+        else
+            UPLOADED="2018-11-01T00:00:00Z" # Initial ingestion of legacy iRods data into the current IDA service
+            if [[ "$MODIFIED" > "$UPLOADED" ]]; then
+                UPLOADED="$MODIFIED"
+            fi
         fi
 
     else
@@ -1182,6 +1190,10 @@ function execute_ida_info {
 
             if [ "$ENCODING" ]; then
                 echo "   \"encoding\": \"$ENCODING\","
+            fi
+
+            if [ "$UPLOADED" ]; then
+                echo "   \"uploaded\": \"$UPLOADED\","
             fi
 
             if [ "$MODIFIED" ]; then
@@ -1248,6 +1260,10 @@ function execute_ida_info {
 
             if [ "$ENCODING" ]; then
                 echo "encoding:   $ENCODING"
+            fi
+
+            if [ "$UPLOADED" ]; then
+                echo "uploaded:   $UPLOADED"
             fi
 
             if [ "$MODIFIED" ]; then
