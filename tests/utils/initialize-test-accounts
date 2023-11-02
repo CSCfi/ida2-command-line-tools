@@ -104,6 +104,7 @@ for PROJECT in $PROJECTS; do
     printf "%${PADDING}s" "$STEP"
     OUT=`$CURL_POST $NC_ADMIN_USER:$NC_ADMIN_PASS "$URL_BASE_IDA/api/flush?project=$PROJECT" 2>&1`
     if [ "$?" -ne 0 ]; then
+        OUT=`echo "$OUT" | head -1`
         failure "$OUT (ignored)"
     else
         success
@@ -119,7 +120,13 @@ if [ "$METAX_AVAILABLE" = "1" ]; then
         printf "%${PADDING}s" "$STEP"
         OUT=`$CURL_POST $METAX_API_USER:$METAX_API_PASS "$METAX_API_RPC_URL/files/flush_project?project_identifier=$PROJECT" 2>&1`
         if [ "$?" -ne 0 ]; then
-            failure "$OUT (ignored)"
+            OUT=`echo "$OUT" | head -1`
+            NOT_FOUND=`echo "$OUT" | grep '404 Not Found'`
+            if [ "$NOT_FOUND" ]; then
+                failure "404 Not Found (ignored)"
+            else
+                failure "$OUT (ignored)"
+            fi
         else
             success
         fi
@@ -133,6 +140,7 @@ for PROJECT in $PROJECTS; do
     printf "%${PADDING}s" "$STEP"
     OUT=`/bin/rm -fr $DATA_REPLICATION_ROOT/projects/$PROJECT 2>&1`
     if [ "$?" -ne 0 ]; then
+        OUT=`echo "$OUT" | head -1`
         failure "$OUT (ignored)"
     else
         success
@@ -150,6 +158,7 @@ for USER in $USERS; do
     printf "%${PADDING}s" "$STEP"
     OUT=`$ROOT/admin/ida_user DELETE $USER 2>&1`
     if [ "$?" -ne 0 ]; then
+        OUT=`echo "$OUT" | head -1`
         failure "$OUT (ignored)"
     else
         success
@@ -163,6 +172,7 @@ for PROJECT in $PROJECTS; do
     printf "%${PADDING}s" "$STEP"
     OUT=`$ROOT/admin/ida_project DISABLE $PROJECT 2>&1`
     if [ "$?" -ne 0 ]; then
+        OUT=`echo "$OUT" | head -1`
         failure "$OUT (ignored)"
     else
         success
@@ -177,6 +187,7 @@ for PROJECT in $PROJECTS; do
     printf "%${PADDING}s" "$STEP"
     OUT=`$ROOT/admin/ida_user DELETE $USER 2>&1`
     if [ "$?" -ne 0 ]; then
+        OUT=`echo "$OUT" | head -1`
         failure "$OUT (ignored)"
     else
         success
@@ -191,6 +202,7 @@ for USER in $USERS; do
         printf "%${PADDING}s" "$STEP"
         OUT=`rm -fr "$STORAGE_OC_DATA_ROOT/$USER"`
         if [ "$?" -ne 0 ]; then
+            OUT=`echo "$OUT" | head -1`
             failure "$OUT (ignored)"
         else
             success
@@ -208,6 +220,7 @@ for PROJECT in $PROJECTS; do
             printf "%${PADDING}s" "$STEP"
             OUT=`rm -fr "$TARGET"`
             if [ "$?" -ne 0 ]; then
+                OUT=`echo "$OUT" | head -1`
                 failure "$OUT (ignored)"
             else
                 success

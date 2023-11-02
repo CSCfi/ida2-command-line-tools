@@ -22,7 +22,7 @@
 # @link https://research.csc.fi/
 #--------------------------------------------------------------------------------
 
-RELEASE_CHECKSUM="aa9654a686f81ec637abc189b4c9e8fb09ec55853c3cb63d402b1cc23094d50a"
+RELEASE_CHECKSUM="274e850a770980e3f93386a95b61af0d23a893fa0dd918a98140376f845793df"
 
 ALLOW_MODIFIED_SCRIPT="false" # Set to "true" to allow execution of a modified script
 
@@ -155,8 +155,7 @@ fi
 
 IDA_SKIPPED_FILES="false"
 
-#--------------------------------------------------------------------------------
-
+IDA_MODE_HEADER="IDA-Mode: CLI"
 PROPFIND_HEADER="Content-Type: text/xml; charset=\"utf-8\""
 PROPFIND_BODY="<?xml version=\"1.0\"?><d:propfind xmlns:d=\"DAV:\" xmlns:oc=\"http://owncloud.org/ns\" xmlns:nc=\"http://nextcloud.org/ns\"><d:prop><d:resourcetype /><d:getcontenttype /><d:getcontentlength /><d:getlastmodified /><d:quota-used-bytes /><oc:checksums /><nc:upload_time /></d:prop></d:propfind>"
 
@@ -326,10 +325,10 @@ function check_scope {
     fi
 
     if [ "$IDA_DEBUG" = "true" ]; then
-        echo "curl $IDA_CURL_OPS -X POST -o /dev/null -w '%{http_code}' \"${IDA_HOST}${IDA_API}/checkScope?project=${IDA_PROJECT}&pathname=${1}\" <<< \"$IDA_DEBUG_CREDENTIALS\"" >&2
+        echo "curl $IDA_CURL_OPS -X POST -w '%{http_code}' -H '$IDA_MODE_HEADER' -o /dev/null \"${IDA_HOST}${IDA_API}/scopeOK?project=${IDA_PROJECT}&pathname=${1}\" <<< \"$IDA_DEBUG_CREDENTIALS\"" >&2
     fi
 
-    OUTPUT=$(curl $IDA_CURL_OPS -X POST -o /dev/null -w '%{http_code}' "${IDA_HOST}${IDA_API}/checkScope?project=${IDA_PROJECT}&pathname=${1}" <<< "$IDA_CREDENTIALS")
+    OUTPUT=$(curl $IDA_CURL_OPS -X POST -w '%{http_code}' -H "$IDA_MODE_HEADER" -o /dev/null "${IDA_HOST}${IDA_API}/scopeOK?project=${IDA_PROJECT}&pathname=${1}" <<< "$IDA_CREDENTIALS")
 
     if [ "$IDA_DEBUG" = "true" ]; then
         echo "Response: ${OUTPUT}" >&2
@@ -341,7 +340,7 @@ function check_scope {
     fi
 
     if [[ ${OUTPUT::1} != "2" ]]; then
-        echo "Error: POST request failed for '/checkScope?project=${IDA_PROJECT}&pathname=${1}': ${OUTPUT}" >&2
+        echo "Error: POST request failed for '/scopeOK?project=${IDA_PROJECT}&pathname=${1}': ${OUTPUT}" >&2
         exit 1
     fi
 }
@@ -353,10 +352,10 @@ function verify_target_exists {
     fi
 
     if [ "$IDA_DEBUG" = "true" ]; then
-        echo "curl $IDA_CURL_OPS -I -o /dev/null -w '%{http_code}' \"${IDA_HOST}${IDA_WEBDAV}/${ENCODED_IDA_TARGET_FOLDER}/${1}\" <<< \"$IDA_DEBUG_CREDENTIALS\"" >&2
+        echo "curl $IDA_CURL_OPS -I -w '%{http_code}' -H '$IDA_MODE_HEADER' -o /dev/null \"${IDA_HOST}${IDA_WEBDAV}/${ENCODED_IDA_TARGET_FOLDER}/${1}\" <<< \"$IDA_DEBUG_CREDENTIALS\"" >&2
     fi
 
-    OUTPUT=$(curl $IDA_CURL_OPS -I -o /dev/null -w '%{http_code}' "${IDA_HOST}${IDA_WEBDAV}/${ENCODED_IDA_TARGET_FOLDER}/${1}" <<< "$IDA_CREDENTIALS")
+    OUTPUT=$(curl $IDA_CURL_OPS -I -w '%{http_code}' -H "$IDA_MODE_HEADER" -o /dev/null "${IDA_HOST}${IDA_WEBDAV}/${ENCODED_IDA_TARGET_FOLDER}/${1}" <<< "$IDA_CREDENTIALS")
 
     if [ "$OUTPUT" = "404" ]; then
         echo "Error: Specified target not found" >&2
@@ -376,10 +375,10 @@ function verify_new_target_does_not_exist {
     fi
 
     if [ "$IDA_DEBUG" = "true" ]; then
-        echo "curl $IDA_CURL_OPS -I -o /dev/null -w '%{http_code}' \"${IDA_HOST}${IDA_WEBDAV}/${ENCODED_IDA_STAGING_FOLDER}/${1}\" <<< \"$IDA_DEBUG_CREDENTIALS\"" >&2
+        echo "curl $IDA_CURL_OPS -I -w '%{http_code}' -H '$IDA_MODE_HEADER' -o /dev/null \"${IDA_HOST}${IDA_WEBDAV}/${ENCODED_IDA_STAGING_FOLDER}/${1}\" <<< \"$IDA_DEBUG_CREDENTIALS\"" >&2
     fi
 
-    OUTPUT=$(curl $IDA_CURL_OPS -I -o /dev/null -w '%{http_code}' "${IDA_HOST}${IDA_WEBDAV}/${ENCODED_IDA_STAGING_FOLDER}/${1}" <<< "$IDA_CREDENTIALS")
+    OUTPUT=$(curl $IDA_CURL_OPS -I -w '%{http_code}' -H "$IDA_MODE_HEADER" -o /dev/null "${IDA_HOST}${IDA_WEBDAV}/${ENCODED_IDA_STAGING_FOLDER}/${1}" <<< "$IDA_CREDENTIALS")
 
     if [[ ${OUTPUT::1} = "2" ]]; then
         echo "Error: Specified new target already exists" >&2
@@ -399,10 +398,10 @@ function check_target_type {
     fi
 
     if [ "$IDA_DEBUG" = "true" ]; then
-        echo "curl $IDA_CURL_OPS -X PROPFIND -H '$PROPFIND_HEADER' -d '$PROPFIND_BODY' \"${IDA_HOST}${IDA_WEBDAV}/${ENCODED_IDA_TARGET_FOLDER}/${1}\" 2>&1 <<< \"$IDA_DEBUG_CREDENTIALS\" | grep '<d:resourcetype><d:collection/></d:resourcetype>'" >&2
+        echo "curl $IDA_CURL_OPS -X PROPFIND -H '$IDA_MODE_HEADER' -H '$PROPFIND_HEADER' -d '$PROPFIND_BODY' \"${IDA_HOST}${IDA_WEBDAV}/${ENCODED_IDA_TARGET_FOLDER}/${1}\" 2>&1 <<< \"$IDA_DEBUG_CREDENTIALS\" | grep '<d:resourcetype><d:collection/></d:resourcetype>'" >&2
     fi
 
-    OUTPUT=$(curl $IDA_CURL_OPS -X PROPFIND -H "$PROPFIND_HEADER" -d "$PROPFIND_BODY" "${IDA_HOST}${IDA_WEBDAV}/${ENCODED_IDA_TARGET_FOLDER}/${1}" 2>&1 <<< "$IDA_CREDENTIALS" | grep '<d:resourcetype><d:collection/></d:resourcetype>')
+    OUTPUT=$(curl $IDA_CURL_OPS -X PROPFIND -H "$IDA_MODE_HEADER" -H "$PROPFIND_HEADER" -d "$PROPFIND_BODY" "${IDA_HOST}${IDA_WEBDAV}/${ENCODED_IDA_TARGET_FOLDER}/${1}" 2>&1 <<< "$IDA_CREDENTIALS" | grep '<d:resourcetype><d:collection/></d:resourcetype>')
 
     if [ -n "$OUTPUT" ]; then
         TARGET_TYPE="folder"
@@ -447,12 +446,12 @@ function ensure_ancestor_folders_exist {
         check_scope "$ENCODED_ANCESTOR_FOLDER_PATHNAME"
 
         if [ "$IDA_DEBUG" = "true" ]; then
-            echo "curl $IDA_CURL_OPS -X MKCOL \"${IDA_HOST}${IDA_WEBDAV}/${ENCODED_IDA_STAGING_FOLDER}/${ENCODED_ANCESTOR_FOLDER_PATHNAME}\" 2>&1 >/dev/null <<< \"$IDA_DEBUG_CREDENTIALS\"" >&2
+            echo "curl $IDA_CURL_OPS -X MKCOL -H '$IDA_MODE_HEADER' \"${IDA_HOST}${IDA_WEBDAV}/${ENCODED_IDA_STAGING_FOLDER}/${ENCODED_ANCESTOR_FOLDER_PATHNAME}\" 2>&1 >/dev/null <<< \"$IDA_DEBUG_CREDENTIALS\"" >&2
         fi
 
         if [ "$IDA_EXECUTE_ACTION" = "true" ]; then
             # Ignore any failure (i.e. when folder already exists)
-            curl $IDA_CURL_OPS -X MKCOL "${IDA_HOST}${IDA_WEBDAV}/${ENCODED_IDA_STAGING_FOLDER}/${ENCODED_ANCESTOR_FOLDER_PATHNAME}" 2>&1 >/dev/null <<< "$IDA_CREDENTIALS"
+            curl $IDA_CURL_OPS -X MKCOL -H "$IDA_MODE_HEADER" "${IDA_HOST}${IDA_WEBDAV}/${ENCODED_IDA_STAGING_FOLDER}/${ENCODED_ANCESTOR_FOLDER_PATHNAME}" 2>&1 >/dev/null <<< "$IDA_CREDENTIALS"
         fi
 
         if [ "$ANCESTOR_PATHNAME" = "$ANCESTOR_FOLDER" ]; then
@@ -506,12 +505,12 @@ function execute_ida_upload {
         fi
 
         if [ "$IDA_DEBUG" = "true" ]; then
-            echo "curl $IDA_CURL_OPS -X MKCOL \"${IDA_HOST}${IDA_WEBDAV}/${ENCODED_IDA_STAGING_FOLDER}/${ENCODED_TARGET_PATHNAME}\" 2>&1 >/dev/null <<< \"$IDA_DEBUG_CREDENTIALS\"" >&2
+            echo "curl $IDA_CURL_OPS -X MKCOL -H '$IDA_MODE_HEADER' \"${IDA_HOST}${IDA_WEBDAV}/${ENCODED_IDA_STAGING_FOLDER}/${ENCODED_TARGET_PATHNAME}\" 2>&1 >/dev/null <<< \"$IDA_DEBUG_CREDENTIALS\"" >&2
         fi
 
         if [ "$IDA_EXECUTE_ACTION" = "true" ]; then
             # Ignore any failure (i.e. when folder already exists)
-            curl $IDA_CURL_OPS -X MKCOL "${IDA_HOST}${IDA_WEBDAV}/${ENCODED_IDA_STAGING_FOLDER}/${ENCODED_TARGET_PATHNAME}" 2>&1 >/dev/null <<< "$IDA_CREDENTIALS"
+            curl $IDA_CURL_OPS -X MKCOL -H "$IDA_MODE_HEADER" "${IDA_HOST}${IDA_WEBDAV}/${ENCODED_IDA_STAGING_FOLDER}/${ENCODED_TARGET_PATHNAME}" 2>&1 >/dev/null <<< "$IDA_CREDENTIALS"
         fi
 
         # Next create all directories in directory tree, as necessary
@@ -541,12 +540,12 @@ function execute_ida_upload {
                 check_scope "$ENCODED_TARGET_PATHNAME"
 
                 if [ "$IDA_DEBUG" = "true" ]; then
-                    echo "curl $IDA_CURL_OPS -X MKCOL \"${IDA_HOST}${IDA_WEBDAV}/${ENCODED_IDA_STAGING_FOLDER}/${ENCODED_TARGET_PATHNAME}\" 2>&1 >/dev/null <<< \"$IDA_DEBUG_CREDENTIALS\"" >&2
+                    echo "curl $IDA_CURL_OPS -X MKCOL -H '$IDA_MODE_HEADER' \"${IDA_HOST}${IDA_WEBDAV}/${ENCODED_IDA_STAGING_FOLDER}/${ENCODED_TARGET_PATHNAME}\" 2>&1 >/dev/null <<< \"$IDA_DEBUG_CREDENTIALS\"" >&2
                 fi
 
                 if [ "$IDA_EXECUTE_ACTION" = "true" ]; then
                     # Ignore any failure (i.e. when folder already exists)
-                    curl $IDA_CURL_OPS -X MKCOL "${IDA_HOST}${IDA_WEBDAV}/${ENCODED_IDA_STAGING_FOLDER}/${ENCODED_TARGET_PATHNAME}" 2>&1 >/dev/null <<< "$IDA_CREDENTIALS"
+                    curl $IDA_CURL_OPS -X MKCOL -H "$IDA_MODE_HEADER" "${IDA_HOST}${IDA_WEBDAV}/${ENCODED_IDA_STAGING_FOLDER}/${ENCODED_TARGET_PATHNAME}" 2>&1 >/dev/null <<< "$IDA_CREDENTIALS"
                 fi
             fi
 
@@ -608,10 +607,10 @@ function execute_ida_upload_file {
     if [ "$IDA_FORCE_UPLOAD" != "true" ]; then
 
         if [ "$IDA_DEBUG" = "true" ]; then
-            echo "curl $IDA_CURL_OPS -X PROPFIND -H '$PROPFIND_HEADER' -d '$PROPFIND_BODY' \"${IDA_HOST}${IDA_WEBDAV}/${ENCODED_IDA_STAGING_FOLDER}/${ENCODED_TARGET_PATHNAME}\" 2>/dev/null <<< \"$IDA_DEBUG_CREDENTIALS\"" >&2
+            echo "curl $IDA_CURL_OPS -X PROPFIND -H '$IDA_MODE_HEADER' -H '$PROPFIND_HEADER' -d '$PROPFIND_BODY' \"${IDA_HOST}${IDA_WEBDAV}/${ENCODED_IDA_STAGING_FOLDER}/${ENCODED_TARGET_PATHNAME}\" 2>/dev/null <<< \"$IDA_DEBUG_CREDENTIALS\"" >&2
         fi
 
-        OUTPUT=$(curl $IDA_CURL_OPS -X PROPFIND -H "$PROPFIND_HEADER" -d "$PROPFIND_BODY" "${IDA_HOST}${IDA_WEBDAV}/${ENCODED_IDA_STAGING_FOLDER}/${ENCODED_TARGET_PATHNAME}" 2>/dev/null <<< "$IDA_CREDENTIALS")
+        OUTPUT=$(curl $IDA_CURL_OPS -X PROPFIND -H "$IDA_MODE_HEADER" -H "$PROPFIND_HEADER" -d "$PROPFIND_BODY" "${IDA_HOST}${IDA_WEBDAV}/${ENCODED_IDA_STAGING_FOLDER}/${ENCODED_TARGET_PATHNAME}" 2>/dev/null <<< "$IDA_CREDENTIALS")
 
         if [[ "$OSTYPE" = "darwin"* ]]; then
             OUTPUT=$(echo "$OUTPUT" | sed -e $'s/</\\\n</g')
@@ -683,12 +682,12 @@ function execute_ida_upload_file {
         MODIFIED=`stat -c "%Y" "$IDA_UPLOAD_FILE_LOCAL_PATHNAME"`
 
         if [ "$IDA_DEBUG" = "true" ]; then
-            echo "curl $IDA_CURL_OPS -X PUT -o /dev/null -w '%{http_code}' -H 'X-OC-Mtime: $MODIFIED' -H 'OC-Checksum:sha256:$IDA_UPLOAD_FILE_LOCAL_CHECKSUM' -T \"$IDA_UPLOAD_FILE_LOCAL_PATHNAME\" \"${IDA_HOST}${IDA_WEBDAV}/${ENCODED_IDA_STAGING_FOLDER}/${ENCODED_TARGET_PATHNAME}\" <<< \"$IDA_DEBUG_CREDENTIALS\"" >&2
+            echo "curl $IDA_CURL_OPS -X PUT -H '$IDA_MODE_HEADER' -o /dev/null -w '%{http_code}' -H 'X-OC-Mtime: $MODIFIED' -H 'OC-Checksum:sha256:$IDA_UPLOAD_FILE_LOCAL_CHECKSUM' -T \"$IDA_UPLOAD_FILE_LOCAL_PATHNAME\" \"${IDA_HOST}${IDA_WEBDAV}/${ENCODED_IDA_STAGING_FOLDER}/${ENCODED_TARGET_PATHNAME}\" <<< \"$IDA_DEBUG_CREDENTIALS\"" >&2
         fi
 
         if [ "$IDA_EXECUTE_ACTION" = "true" ]; then
 
-            OUTPUT=$(curl $IDA_CURL_OPS -X PUT -o /dev/null -w '%{http_code}' -H "X-OC-Mtime: $MODIFIED" -H "OC-Checksum:SHA256:$IDA_UPLOAD_FILE_LOCAL_CHECKSUM" -T "$IDA_UPLOAD_FILE_LOCAL_PATHNAME" "${IDA_HOST}${IDA_WEBDAV}/${ENCODED_IDA_STAGING_FOLDER}/${ENCODED_TARGET_PATHNAME}" <<< "$IDA_CREDENTIALS")
+            OUTPUT=$(curl $IDA_CURL_OPS -X PUT -H "$IDA_MODE_HEADER" -o /dev/null -w '%{http_code}' -H "X-OC-Mtime: $MODIFIED" -H "OC-Checksum:SHA256:$IDA_UPLOAD_FILE_LOCAL_CHECKSUM" -T "$IDA_UPLOAD_FILE_LOCAL_PATHNAME" "${IDA_HOST}${IDA_WEBDAV}/${ENCODED_IDA_STAGING_FOLDER}/${ENCODED_TARGET_PATHNAME}" <<< "$IDA_CREDENTIALS")
 
             if [[ ${OUTPUT::1} != "2" ]]; then
                 echo "Error: PUT request failed for '/${ENCODED_IDA_STAGING_FOLDER}/${ENCODED_TARGET_PATHNAME}': ${OUTPUT}" >&2
@@ -770,10 +769,10 @@ function execute_ida_validate_file {
     ENCODED_TARGET_PATHNAME=$(url_encode "$IDA_VALIDATE_FILE_TARGET_PATHNAME")
 
     if [ "$IDA_DEBUG" = "true" ]; then
-        echo "curl $IDA_CURL_OPS -X PROPFIND -H '$PROPFIND_HEADER' -d '$PROPFIND_BODY' \"${IDA_HOST}${IDA_WEBDAV}/${ENCODED_IDA_TARGET_FOLDER}/${ENCODED_TARGET_PATHNAME}\" 2>/dev/null <<< \"$IDA_DEBUG_CREDENTIALS\"" >&2
+        echo "curl $IDA_CURL_OPS -X PROPFIND -H '$IDA_MODE_HEADER' -H '$PROPFIND_HEADER' -d '$PROPFIND_BODY' \"${IDA_HOST}${IDA_WEBDAV}/${ENCODED_IDA_TARGET_FOLDER}/${ENCODED_TARGET_PATHNAME}\" 2>/dev/null <<< \"$IDA_DEBUG_CREDENTIALS\"" >&2
     fi
 
-    OUTPUT=$(curl $IDA_CURL_OPS -X PROPFIND -H "$PROPFIND_HEADER" -d "$PROPFIND_BODY" "${IDA_HOST}${IDA_WEBDAV}/${ENCODED_IDA_TARGET_FOLDER}/${ENCODED_TARGET_PATHNAME}" 2>/dev/null <<< "$IDA_CREDENTIALS")
+    OUTPUT=$(curl $IDA_CURL_OPS -X PROPFIND -H "$IDA_MODE_HEADER" -H "$PROPFIND_HEADER" -d "$PROPFIND_BODY" "${IDA_HOST}${IDA_WEBDAV}/${ENCODED_IDA_TARGET_FOLDER}/${ENCODED_TARGET_PATHNAME}" 2>/dev/null <<< "$IDA_CREDENTIALS")
 
     if [[ "$OSTYPE" = "darwin"* ]]; then
         OUTPUT=$(echo "$OUTPUT" | sed -e $'s/</\\\n</g')
@@ -852,12 +851,12 @@ function execute_ida_move {
     ensure_ancestor_folders_exist "$NEW_TARGET_PATHNAME"
 
     if [ "$IDA_DEBUG" = "true" ]; then
-        echo "curl $IDA_CURL_OPS -X MOVE -o /dev/null -w '%{http_code}' -H \"Destination:${IDA_HOST}${IDA_WEBDAV}/${ENCODED_IDA_STAGING_FOLDER}/${ENCODED_NEW_TARGET_PATHNAME}\" \"${IDA_HOST}${IDA_WEBDAV}/${ENCODED_IDA_STAGING_FOLDER}/${ENCODED_TARGET_PATHNAME}\" <<< \"$IDA_DEBUG_CREDENTIALS\"" >&2
+        echo "curl $IDA_CURL_OPS -X MOVE -H '$IDA_MODE_HEADER' -o /dev/null -w '%{http_code}' -H \"Destination:${IDA_HOST}${IDA_WEBDAV}/${ENCODED_IDA_STAGING_FOLDER}/${ENCODED_NEW_TARGET_PATHNAME}\" \"${IDA_HOST}${IDA_WEBDAV}/${ENCODED_IDA_STAGING_FOLDER}/${ENCODED_TARGET_PATHNAME}\" <<< \"$IDA_DEBUG_CREDENTIALS\"" >&2
     fi
 
     if [ "$IDA_EXECUTE_ACTION" = "true" ]; then
 
-        OUTPUT=$(curl $IDA_CURL_OPS -X MOVE -o /dev/null -w '%{http_code}' -H "Destination:${IDA_HOST}${IDA_WEBDAV}/${ENCODED_IDA_STAGING_FOLDER}/${ENCODED_NEW_TARGET_PATHNAME}" "${IDA_HOST}${IDA_WEBDAV}/${ENCODED_IDA_STAGING_FOLDER}/${ENCODED_TARGET_PATHNAME}" <<< "$IDA_CREDENTIALS")
+        OUTPUT=$(curl $IDA_CURL_OPS -X MOVE -H "$IDA_MODE_HEADER" -o /dev/null -w '%{http_code}' -H "Destination:${IDA_HOST}${IDA_WEBDAV}/${ENCODED_IDA_STAGING_FOLDER}/${ENCODED_NEW_TARGET_PATHNAME}" "${IDA_HOST}${IDA_WEBDAV}/${ENCODED_IDA_STAGING_FOLDER}/${ENCODED_TARGET_PATHNAME}" <<< "$IDA_CREDENTIALS")
 
         if [ "$OUTPUT" != "201" ]; then
             echo "Error: MOVE request failed for '/${ENCODED_IDA_STAGING_FOLDER}/${ENCODED_TARGET_PATHNAME}': ${OUTPUT}" >&2
@@ -902,12 +901,12 @@ function execute_ida_copy {
     ensure_ancestor_folders_exist "$NEW_TARGET_PATHNAME"
 
     if [ "$IDA_DEBUG" = "true" ]; then
-        echo "curl $IDA_CURL_OPS -X COPY -o /dev/null -w '%{http_code}' -H \"Destination:${IDA_HOST}${IDA_WEBDAV}/${ENCODED_IDA_STAGING_FOLDER}/${ENCODED_NEW_TARGET_PATHNAME}\" \"${IDA_HOST}${IDA_WEBDAV}/${ENCODED_IDA_TARGET_FOLDER}/${ENCODED_TARGET_PATHNAME}\" <<< \"$IDA_DEBUG_CREDENTIALS\"" >&2
+        echo "curl $IDA_CURL_OPS -X COPY -H '$IDA_MODE_HEADER' -o /dev/null -w '%{http_code}' -H \"Destination:${IDA_HOST}${IDA_WEBDAV}/${ENCODED_IDA_STAGING_FOLDER}/${ENCODED_NEW_TARGET_PATHNAME}\" \"${IDA_HOST}${IDA_WEBDAV}/${ENCODED_IDA_TARGET_FOLDER}/${ENCODED_TARGET_PATHNAME}\" <<< \"$IDA_DEBUG_CREDENTIALS\"" >&2
     fi
 
     if [ "$IDA_EXECUTE_ACTION" = "true" ]; then
 
-        OUTPUT=$(curl $IDA_CURL_OPS -X COPY -o /dev/null -w '%{http_code}' -H "Destination:${IDA_HOST}${IDA_WEBDAV}/${ENCODED_IDA_STAGING_FOLDER}/${ENCODED_NEW_TARGET_PATHNAME}" "${IDA_HOST}${IDA_WEBDAV}/${ENCODED_IDA_TARGET_FOLDER}/${ENCODED_TARGET_PATHNAME}" <<< "$IDA_CREDENTIALS")
+        OUTPUT=$(curl $IDA_CURL_OPS -X COPY -H "$IDA_MODE_HEADER" -o /dev/null -w '%{http_code}' -H "Destination:${IDA_HOST}${IDA_WEBDAV}/${ENCODED_IDA_STAGING_FOLDER}/${ENCODED_NEW_TARGET_PATHNAME}" "${IDA_HOST}${IDA_WEBDAV}/${ENCODED_IDA_TARGET_FOLDER}/${ENCODED_TARGET_PATHNAME}" <<< "$IDA_CREDENTIALS")
 
         if [ "$OUTPUT" != "201" ]; then
             echo "Error: COPY request failed for '/${ENCODED_IDA_TARGET_FOLDER}/${ENCODED_TARGET_PATHNAME}': ${OUTPUT}" >&2
@@ -941,12 +940,12 @@ function execute_ida_delete {
     verify_target_exists "$ENCODED_TARGET_PATHNAME"
 
     if [ "$IDA_DEBUG" = "true" ]; then
-        echo "curl $IDA_CURL_OPS -X DELETE -o /dev/null -w '%{http_code}' \"${IDA_HOST}${IDA_WEBDAV}/${ENCODED_IDA_STAGING_FOLDER}/${ENCODED_TARGET_PATHNAME}\" <<< \"$IDA_DEBUG_CREDENTIALS\"" >&2
+        echo "curl $IDA_CURL_OPS -X DELETE -H '$IDA_MODE_HEADER' -o /dev/null -w '%{http_code}' \"${IDA_HOST}${IDA_WEBDAV}/${ENCODED_IDA_STAGING_FOLDER}/${ENCODED_TARGET_PATHNAME}\" <<< \"$IDA_DEBUG_CREDENTIALS\"" >&2
     fi
 
     if [ "$IDA_EXECUTE_ACTION" = "true" ]; then
 
-        OUTPUT=$(curl $IDA_CURL_OPS -X DELETE -o /dev/null -w '%{http_code}' "${IDA_HOST}${IDA_WEBDAV}/${ENCODED_IDA_STAGING_FOLDER}/${ENCODED_TARGET_PATHNAME}" <<< "$IDA_CREDENTIALS")
+        OUTPUT=$(curl $IDA_CURL_OPS -X DELETE -H "$IDA_MODE_HEADER" -o /dev/null -w '%{http_code}' "${IDA_HOST}${IDA_WEBDAV}/${ENCODED_IDA_STAGING_FOLDER}/${ENCODED_TARGET_PATHNAME}" <<< "$IDA_CREDENTIALS")
 
         if [[ ${OUTPUT::1} != "2" ]]; then
             echo "Error: DELETE request failed for '/${ENCODED_IDA_STAGING_FOLDER}/${ENCODED_TARGET_PATHNAME}':" >&2
@@ -993,10 +992,10 @@ function execute_ida_download {
     if [ "$TARGET_TYPE" = "file" ]; then
 
         if [ "$IDA_DEBUG" = "true" ]; then
-            echo "curl $IDA_CURL_OPS -w '%{http_code}' -o \"$LOCAL_PATHNAME\" \"${IDA_HOST}${IDA_WEBDAV}/${ENCODED_IDA_TARGET_FOLDER}/${ENCODED_TARGET_PATHNAME}\" <<< \"$IDA_DEBUG_CREDENTIALS\"" >&2
+            echo "curl $IDA_CURL_OPS -w '%{http_code}' -H '$IDA_MODE_HEADER' -o \"$LOCAL_PATHNAME\" \"${IDA_HOST}${IDA_WEBDAV}/${ENCODED_IDA_TARGET_FOLDER}/${ENCODED_TARGET_PATHNAME}\" <<< \"$IDA_DEBUG_CREDENTIALS\"" >&2
         fi
 
-        OUTPUT=$(curl $IDA_CURL_OPS -w '%{http_code}' -o "$LOCAL_PATHNAME" "${IDA_HOST}${IDA_WEBDAV}/${ENCODED_IDA_TARGET_FOLDER}/${ENCODED_TARGET_PATHNAME}" <<< "$IDA_CREDENTIALS")
+        OUTPUT=$(curl $IDA_CURL_OPS -w '%{http_code}' -H "$IDA_MODE_HEADER" -o "$LOCAL_PATHNAME" "${IDA_HOST}${IDA_WEBDAV}/${ENCODED_IDA_TARGET_FOLDER}/${ENCODED_TARGET_PATHNAME}" <<< "$IDA_CREDENTIALS")
 
         if [[ ${OUTPUT::1} != "2" ]]; then
             echo "Error: GET request failed for '/${ENCODED_IDA_TARGET_FOLDER}/${ENCODED_TARGET_PATHNAME}': ${OUTPUT}" >&2
@@ -1016,10 +1015,10 @@ function execute_ida_download {
         fi
 
         if [ "$IDA_DEBUG" = "true" ]; then
-            echo "curl $IDA_CURL_OPS -w '%{http_code}' --header 'Accept: application/zip' -o \"$LOCAL_PATHNAME\" \"${IDA_HOST}/index.php/apps/files/ajax/download.php?dir=/${ENCODED_IDA_TARGET_FOLDER}/${ENCODED_TARGET_PATHNAME}\" <<< \"$IDA_DEBUG_CREDENTIALS\"" >&2
+            echo "curl $IDA_CURL_OPS -w '%{http_code}' -H '$IDA_MODE_HEADER' -H 'Accept: application/zip' -o \"$LOCAL_PATHNAME\" \"${IDA_HOST}/index.php/apps/files/ajax/download.php?dir=/${ENCODED_IDA_TARGET_FOLDER}/${ENCODED_TARGET_PATHNAME}\" <<< \"$IDA_DEBUG_CREDENTIALS\"" >&2
         fi
 
-        OUTPUT=$(curl $IDA_CURL_OPS -w '%{http_code}' --header 'Accept: application/zip' -o "$LOCAL_PATHNAME" "${IDA_HOST}/index.php/apps/files/ajax/download.php?dir=/${ENCODED_IDA_TARGET_FOLDER}/${ENCODED_TARGET_PATHNAME}" <<< "$IDA_CREDENTIALS")
+        OUTPUT=$(curl $IDA_CURL_OPS -w '%{http_code}' -H "$IDA_MODE_HEADER" -H 'Accept: application/zip' -o "$LOCAL_PATHNAME" "${IDA_HOST}/index.php/apps/files/ajax/download.php?dir=/${ENCODED_IDA_TARGET_FOLDER}/${ENCODED_TARGET_PATHNAME}" <<< "$IDA_CREDENTIALS")
 
         if [[ ${OUTPUT::1} != "2" ]]; then
             echo "Error: GET request failed for '/${ENCODED_IDA_TARGET_FOLDER}/${ENCODED_TARGET_PATHNAME}': ${OUTPUT}" >&2
@@ -1057,10 +1056,10 @@ function execute_ida_info {
     verify_target_exists "$ENCODED_TARGET_PATHNAME"
 
     if [ "$IDA_DEBUG" = "true" ]; then
-        echo "curl $IDA_CURL_OPS -X PROPFIND -H '$PROPFIND_HEADER' -d '$PROPFIND_BODY' \"${IDA_HOST}${IDA_WEBDAV}/${ENCODED_IDA_TARGET_FOLDER}/${ENCODED_TARGET_PATHNAME}\" 2>&1 <<< \"$IDA_DEBUG_CREDENTIALS\"" >&2
+        echo "curl $IDA_CURL_OPS -X PROPFIND -H '$IDA_MODE_HEADER' -H '$PROPFIND_HEADER' -d '$PROPFIND_BODY' \"${IDA_HOST}${IDA_WEBDAV}/${ENCODED_IDA_TARGET_FOLDER}/${ENCODED_TARGET_PATHNAME}\" 2>&1 <<< \"$IDA_DEBUG_CREDENTIALS\"" >&2
     fi
 
-    OUTPUT=$(curl $IDA_CURL_OPS -X PROPFIND -H "$PROPFIND_HEADER" -d "$PROPFIND_BODY" "${IDA_HOST}${IDA_WEBDAV}/${ENCODED_IDA_TARGET_FOLDER}/${ENCODED_TARGET_PATHNAME}" 2>&1 <<< "$IDA_CREDENTIALS")
+    OUTPUT=$(curl $IDA_CURL_OPS -X PROPFIND -H "$IDA_MODE_HEADER" -H "$PROPFIND_HEADER" -d "$PROPFIND_BODY" "${IDA_HOST}${IDA_WEBDAV}/${ENCODED_IDA_TARGET_FOLDER}/${ENCODED_TARGET_PATHNAME}" 2>&1 <<< "$IDA_CREDENTIALS")
 
     if [ "$IDA_DEBUG" = "true" ]; then
         echo "PROPFIND: $OUTPUT" >&2
@@ -1095,10 +1094,10 @@ function execute_ida_info {
         if [ "$IDA_FROZEN" = "true" ]; then
 
             if [ "$IDA_DEBUG" = "true" ]; then
-                echo "curl $IDA_CURL_OPS \"${IDA_HOST}${IDA_API}/files/byProjectPathname/${IDA_PROJECT}?pathname=/${ENCODED_TARGET_PATHNAME}\" 2>&1 <<< \"$IDA_DEBUG_CREDENTIALS\"" >&2
+                echo "curl $IDA_CURL_OPS -H '$IDA_MODE_HEADER' \"${IDA_HOST}${IDA_API}/files/byProjectPathname/${IDA_PROJECT}?pathname=/${ENCODED_TARGET_PATHNAME}\" 2>&1 <<< \"$IDA_DEBUG_CREDENTIALS\"" >&2
             fi
 
-            OUTPUT=$(curl $IDA_CURL_OPS "${IDA_HOST}${IDA_API}/files/byProjectPathname/${IDA_PROJECT}?pathname=/${ENCODED_TARGET_PATHNAME}" 2>&1 <<< "$IDA_CREDENTIALS")
+            OUTPUT=$(curl $IDA_CURL_OPS -H "$IDA_MODE_HEADER" "${IDA_HOST}${IDA_API}/files/byProjectPathname/${IDA_PROJECT}?pathname=/${ENCODED_TARGET_PATHNAME}" 2>&1 <<< "$IDA_CREDENTIALS")
 
             PID=$(echo "$OUTPUT" | grep '"pid":')
 
@@ -1302,10 +1301,10 @@ function execute_ida_inventory {
     fi
 
     if [ "$IDA_DEBUG" = "true" ]; then
-        echo "curl $IDA_CURL_OPS \"${IDA_HOST}${IDA_API}/inventory/${IDA_PROJECT}\" 2>&1 <<< \"$IDA_DEBUG_CREDENTIALS\"" >&2
+        echo "curl $IDA_CURL_OPS -H '$IDA_MODE_HEADER' \"${IDA_HOST}${IDA_API}/inventory/${IDA_PROJECT}\" 2>&1 <<< \"$IDA_DEBUG_CREDENTIALS\"" >&2
     fi
 
-    curl $IDA_CURL_OPS "${IDA_HOST}${IDA_API}/inventory/${IDA_PROJECT}" 2>&1 <<< "$IDA_CREDENTIALS"
+    curl $IDA_CURL_OPS -H "$IDA_MODE_HEADER" "${IDA_HOST}${IDA_API}/inventory/${IDA_PROJECT}" 2>&1 <<< "$IDA_CREDENTIALS"
 }
 
 #--------------------------------------------------------------------------------
@@ -1825,10 +1824,10 @@ if [ "$IDA_VERBOSE" = "true" ]; then
 fi
 
 if [ "$IDA_DEBUG" = "true" ]; then
-    echo "curl $IDA_CURL_OPS -I -o /dev/null -w '%{http_code}' \"${IDA_HOST}${IDA_WEBDAV}/${ENCODED_IDA_STAGING_FOLDER}\" <<< \"$IDA_DEBUG_CREDENTIALS\"" >&2
+    echo "curl $IDA_CURL_OPS -I -w '%{http_code}' -H '$IDA_MODE_HEADER' -o /dev/null \"${IDA_HOST}${IDA_WEBDAV}/${ENCODED_IDA_STAGING_FOLDER}\" <<< \"$IDA_DEBUG_CREDENTIALS\"" >&2
 fi
 
-OUTPUT=$(curl $IDA_CURL_OPS -I -o /dev/null -w '%{http_code}' "${IDA_HOST}${IDA_WEBDAV}/${ENCODED_IDA_STAGING_FOLDER}" <<< "$IDA_CREDENTIALS")
+OUTPUT=$(curl $IDA_CURL_OPS -I -w '%{http_code}' -H "$IDA_MODE_HEADER" -o /dev/null "${IDA_HOST}${IDA_WEBDAV}/${ENCODED_IDA_STAGING_FOLDER}" <<< "$IDA_CREDENTIALS")
 
 if [ "$OUTPUT" = "503" ]; then
     echo "Error: The service is currently unavailable" >&2

@@ -75,8 +75,8 @@ class TestIdaCli(unittest.TestCase):
         self.config_source = self.config["CONFIG_SOURCE"]
 
         if self.config_source == "IDA":
-            self.test_project_name = "test_ida_cli_project"
-            self.test_user_name = "test_ida_cli_user"
+            self.test_project_name = "test_cli_project"
+            self.test_user_name = "test_cli_user"
             self.test_user_pass = self.config["TEST_USER_PASS"]
             self.admin_user_name = self.config["NC_ADMIN_USER"]
             self.admin_user_pass = self.config["NC_ADMIN_PASS"]
@@ -269,6 +269,9 @@ class TestIdaCli(unittest.TestCase):
 
 
     def test_ida_cli(self):
+
+        # TODO add checks that changes are recorded properly with mode 'cli' after every action by 
+        # retrieving the last change and verifying response
 
         if not self.run_trusted_tests:
             print("*** WARNING: Trusted account credentials not defined or ignored. A subset of tests will be executed.")
@@ -804,7 +807,7 @@ class TestIdaCli(unittest.TestCase):
         print("--- File Operations")
 
         print("Upload new file with dry-run parameter and verify no actual upload occurred")
-        cmd = "%s upload -V -D %s /test%s/Contact.txt %s/Contact.txt" % (self.cli_cmd, self.args, self.token, self.testdata)
+        cmd = "%s upload -D %s /test%s/Contact.txt %s/Contact.txt" % (self.cli_cmd, self.args, self.token, self.testdata)
         try:
             output = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT).decode(sys.stdout.encoding)
         except subprocess.CalledProcessError as error:
@@ -816,7 +819,7 @@ class TestIdaCli(unittest.TestCase):
             self.assertFalse(path.exists(), output)
 
         print("Upload new file")
-        cmd = "%s upload -v %s /test%s/Contact.txt %s/Contact.txt" % (self.cli_cmd, self.args, self.token, self.testdata)
+        cmd = "%s upload %s /test%s/Contact.txt %s/Contact.txt" % (self.cli_cmd, self.args, self.token, self.testdata)
         try:
             output = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT).decode(sys.stdout.encoding)
         except subprocess.CalledProcessError as error:
@@ -828,8 +831,23 @@ class TestIdaCli(unittest.TestCase):
             self.assertTrue(path.is_file(), output)
             self.assertEqual(2263, path.stat().st_size, output)
 
+        print("Query IDA for last data change details and verify change matches last action")
+        response = requests.get("%s/dataChanges/%s/last" % (self.config["IDA_API_ROOT_URL"], self.test_project_name), auth=self.test_user_auth)
+        self.assertEqual(response.status_code, 200)
+        changeDetails = response.json()
+        self.assertIsNotNone(changeDetails)
+        self.assertEqual(changeDetails.get('project'), self.test_project_name)
+        self.assertEqual(changeDetails.get('user'), self.test_user_name)
+        self.assertIsNotNone(changeDetails.get('timestamp'))
+        self.assertEqual(changeDetails.get('change'), 'add')
+        self.assertEqual(changeDetails.get('pathname'), "/%s+/test%s/Contact.txt" % (self.test_project_name, self.token))
+        self.assertIsNone(changeDetails.get('target'))
+        self.assertEqual(changeDetails.get('mode'), 'cli')
+        timestamp = changeDetails.get('timestamp')
+        time.sleep(1)
+
         print("Validate new file")
-        cmd = "%s validate -v %s /test%s/Contact.txt %s/Contact.txt" % (self.cli_cmd, self.args, self.token, self.testdata)
+        cmd = "%s validate %s /test%s/Contact.txt %s/Contact.txt" % (self.cli_cmd, self.args, self.token, self.testdata)
         try:
             output = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT).decode(sys.stdout.encoding)
         except subprocess.CalledProcessError as error:
@@ -860,6 +878,21 @@ class TestIdaCli(unittest.TestCase):
             path = Path("%s/test%s/Contact.txt" % (self.staging, self.token))
             self.assertTrue(path.is_file(), output)
 
+        print("Query IDA for last data change details and verify change matches last action")
+        response = requests.get("%s/dataChanges/%s/last" % (self.config["IDA_API_ROOT_URL"], self.test_project_name), auth=self.test_user_auth)
+        self.assertEqual(response.status_code, 200)
+        changeDetails = response.json()
+        self.assertIsNotNone(changeDetails)
+        self.assertEqual(changeDetails.get('project'), self.test_project_name)
+        self.assertEqual(changeDetails.get('user'), self.test_user_name)
+        self.assertTrue(changeDetails.get('timestamp') > timestamp)
+        self.assertEqual(changeDetails.get('change'), 'add')
+        self.assertEqual(changeDetails.get('pathname'), "/%s+/test%s/Contact.txt" % (self.test_project_name, self.token))
+        self.assertIsNone(changeDetails.get('target'))
+        self.assertEqual(changeDetails.get('mode'), 'cli')
+        timestamp = changeDetails.get('timestamp')
+        time.sleep(1)
+
         print("Attempt to upload existing file with local file with different file size than in IDA")
         cmd = "%s upload %s /test%s/Contact.txt %s/License.txt" % (self.cli_cmd, self.args, self.token, self.testdata)
         try:
@@ -885,7 +918,7 @@ class TestIdaCli(unittest.TestCase):
             self.assertNotEqual(2263, path.stat().st_size, output)
 
         print("Validate new file with different local file size than in IDA, which will be reported as invalid")
-        cmd = "%s validate -v %s /test%s/Contact.txt %s/Contact.txt" % (self.cli_cmd, self.args, self.token, self.testdata)
+        cmd = "%s validate %s /test%s/Contact.txt %s/Contact.txt" % (self.cli_cmd, self.args, self.token, self.testdata)
         try:
             output = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT).decode(sys.stdout.encoding)
         except subprocess.CalledProcessError as error:
@@ -893,7 +926,7 @@ class TestIdaCli(unittest.TestCase):
         self.assertIn("INVALID: local file %s/Contact.txt size 2263 does not match IDA file size 446 at /%s+/test%s/Contact.txt" % (self.testdata, self.test_project_name, self.token), output)
 
         print("Validate local file which does not exist in IDA, which will be reported as missing")
-        cmd = "%s validate -v %s /test%s/NoFile.txt %s/Contact.txt" % (self.cli_cmd, self.args, self.token, self.testdata)
+        cmd = "%s validate %s /test%s/NoFile.txt %s/Contact.txt" % (self.cli_cmd, self.args, self.token, self.testdata)
         try:
             output = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT).decode(sys.stdout.encoding)
         except subprocess.CalledProcessError as error:
@@ -914,7 +947,7 @@ class TestIdaCli(unittest.TestCase):
             self.assertEqual(2263, path.stat().st_size, output)
 
         print("Validate restored file")
-        cmd = "%s validate -v %s /test%s/Contact.txt %s/Contact.txt" % (self.cli_cmd, self.args, self.token, self.testdata)
+        cmd = "%s validate %s /test%s/Contact.txt %s/Contact.txt" % (self.cli_cmd, self.args, self.token, self.testdata)
         try:
             output = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT).decode(sys.stdout.encoding)
         except subprocess.CalledProcessError as error:
@@ -956,6 +989,21 @@ class TestIdaCli(unittest.TestCase):
             self.assertTrue(path.is_file(), output)
             self.assertEquals(0, path.stat().st_size, output)
 
+        print("Query IDA for last data change details and verify change matches last action")
+        response = requests.get("%s/dataChanges/%s/last" % (self.config["IDA_API_ROOT_URL"], self.test_project_name), auth=self.test_user_auth)
+        self.assertEqual(response.status_code, 200)
+        changeDetails = response.json()
+        self.assertIsNotNone(changeDetails)
+        self.assertEqual(changeDetails.get('project'), self.test_project_name)
+        self.assertEqual(changeDetails.get('user'), self.test_user_name)
+        self.assertTrue(changeDetails.get('timestamp') > timestamp)
+        self.assertEqual(changeDetails.get('change'), 'add')
+        self.assertEqual(changeDetails.get('pathname'), "/%s+/test%s/zero_size_file" % (self.test_project_name, self.token))
+        self.assertIsNone(changeDetails.get('target'))
+        self.assertEqual(changeDetails.get('mode'), 'cli')
+        timestamp = changeDetails.get('timestamp')
+        time.sleep(1)
+
         print("Copy file within staging with dry-run parameter and verify no actual copy occurred")
         cmd = "%s copy %s -D /test%s/Contact.txt /test%s/a/b/c/Contact.txt" % (self.cli_cmd, self.args, self.token, self.token)
         try:
@@ -979,6 +1027,21 @@ class TestIdaCli(unittest.TestCase):
             self.assertTrue(path.is_file(), output)
             path = Path("%s/test%s/a/b/c/Contact.txt" % (self.staging, self.token))
             self.assertTrue(path.is_file(), output)
+
+        print("Query IDA for last data change details and verify change matches last action")
+        response = requests.get("%s/dataChanges/%s/last" % (self.config["IDA_API_ROOT_URL"], self.test_project_name), auth=self.test_user_auth)
+        self.assertEqual(response.status_code, 200)
+        changeDetails = response.json()
+        self.assertIsNotNone(changeDetails)
+        self.assertEqual(changeDetails.get('project'), self.test_project_name)
+        self.assertEqual(changeDetails.get('user'), self.test_user_name)
+        self.assertTrue(changeDetails.get('timestamp') > timestamp)
+        self.assertEqual(changeDetails.get('change'), 'copy')
+        self.assertEqual(changeDetails.get('pathname'), "/%s+/test%s/Contact.txt" % (self.test_project_name, self.token))
+        self.assertEqual(changeDetails.get('target'), "/%s+/test%s/a/b/c/Contact.txt" % (self.test_project_name, self.token))
+        self.assertEqual(changeDetails.get('mode'), 'cli')
+        timestamp = changeDetails.get('timestamp')
+        time.sleep(1)
 
         print("(freeze file)")
         data = {"project": self.test_project_name, "pathname": "/test%s/a/b/c/Contact.txt" % (self.token)}
@@ -1019,6 +1082,21 @@ class TestIdaCli(unittest.TestCase):
             path = Path("%s/test%s/a/b/c/Contact.txt" % (self.staging, self.token))
             self.assertTrue(path.is_file(), output)
 
+        print("Query IDA for last data change details and verify change matches last action")
+        response = requests.get("%s/dataChanges/%s/last" % (self.config["IDA_API_ROOT_URL"], self.test_project_name), auth=self.test_user_auth)
+        self.assertEqual(response.status_code, 200)
+        changeDetails = response.json()
+        self.assertIsNotNone(changeDetails)
+        self.assertEqual(changeDetails.get('project'), self.test_project_name)
+        self.assertEqual(changeDetails.get('user'), self.test_user_name)
+        self.assertTrue(changeDetails.get('timestamp') > timestamp)
+        self.assertEqual(changeDetails.get('change'), 'copy')
+        self.assertEqual(changeDetails.get('pathname'), "/%s/test%s/a/b/c/Contact.txt" % (self.test_project_name, self.token))
+        self.assertEqual(changeDetails.get('target'), "/%s+/test%s/a/b/c/Contact.txt" % (self.test_project_name, self.token))
+        self.assertEqual(changeDetails.get('mode'), 'cli')
+        timestamp = changeDetails.get('timestamp')
+        time.sleep(1)
+
         print("Copy zero size file")
         cmd = "%s copy %s /test%s/zero_size_file /test%s/a/b/c/zero_size_file" % (self.cli_cmd, self.args, self.token, self.token)
         try:
@@ -1033,6 +1111,21 @@ class TestIdaCli(unittest.TestCase):
             path = Path("%s/test%s/a/b/c/zero_size_file" % (self.staging, self.token))
             self.assertTrue(path.is_file(), output)
             self.assertEquals(0, path.stat().st_size, output)
+
+        print("Query IDA for last data change details and verify change matches last action")
+        response = requests.get("%s/dataChanges/%s/last" % (self.config["IDA_API_ROOT_URL"], self.test_project_name), auth=self.test_user_auth)
+        self.assertEqual(response.status_code, 200)
+        changeDetails = response.json()
+        self.assertIsNotNone(changeDetails)
+        self.assertEqual(changeDetails.get('project'), self.test_project_name)
+        self.assertEqual(changeDetails.get('user'), self.test_user_name)
+        self.assertTrue(changeDetails.get('timestamp') > timestamp)
+        self.assertEqual(changeDetails.get('change'), 'copy')
+        self.assertEqual(changeDetails.get('pathname'), "/%s+/test%s/zero_size_file" % (self.test_project_name, self.token))
+        self.assertEqual(changeDetails.get('target'), "/%s+/test%s/a/b/c/zero_size_file" % (self.test_project_name, self.token))
+        self.assertEqual(changeDetails.get('mode'), 'cli')
+        timestamp = changeDetails.get('timestamp')
+        time.sleep(1)
 
         print("Rename with dry-run parameter and verify no actual renaming occurred")
         cmd = "%s move %s -D /test%s/Contact.txt /test%s/Contact2.txt" % (self.cli_cmd, self.args, self.token, self.token)
@@ -1060,6 +1153,21 @@ class TestIdaCli(unittest.TestCase):
             path = Path("%s/test%s/Contact2.txt" % (self.staging, self.token))
             self.assertTrue(path.is_file(), output)
 
+        print("Query IDA for last data change details and verify change matches last action")
+        response = requests.get("%s/dataChanges/%s/last" % (self.config["IDA_API_ROOT_URL"], self.test_project_name), auth=self.test_user_auth)
+        self.assertEqual(response.status_code, 200)
+        changeDetails = response.json()
+        self.assertIsNotNone(changeDetails)
+        self.assertEqual(changeDetails.get('project'), self.test_project_name)
+        self.assertEqual(changeDetails.get('user'), self.test_user_name)
+        self.assertTrue(changeDetails.get('timestamp') > timestamp)
+        self.assertEqual(changeDetails.get('change'), 'rename')
+        self.assertEqual(changeDetails.get('pathname'), "/%s+/test%s/Contact.txt" % (self.test_project_name, self.token))
+        self.assertEqual(changeDetails.get('target'), "/%s+/test%s/Contact2.txt" % (self.test_project_name, self.token))
+        self.assertEqual(changeDetails.get('mode'), 'cli')
+        timestamp = changeDetails.get('timestamp')
+        time.sleep(1)
+
         print("Move with dry-run parameter and verify no actual move occurred")
         cmd = "%s move %s -D /test%s/Contact2.txt /test%s/x/y/z/Contact.txt" % (self.cli_cmd, self.args, self.token, self.token)
         try:
@@ -1085,6 +1193,21 @@ class TestIdaCli(unittest.TestCase):
             self.assertFalse(path.exists(), output)
             path = Path("%s/test%s/x/y/z/Contact.txt" % (self.staging, self.token))
             self.assertTrue(path.is_file(), output)
+
+        print("Query IDA for last data change details and verify change matches last action")
+        response = requests.get("%s/dataChanges/%s/last" % (self.config["IDA_API_ROOT_URL"], self.test_project_name), auth=self.test_user_auth)
+        self.assertEqual(response.status_code, 200)
+        changeDetails = response.json()
+        self.assertIsNotNone(changeDetails)
+        self.assertEqual(changeDetails.get('project'), self.test_project_name)
+        self.assertEqual(changeDetails.get('user'), self.test_user_name)
+        self.assertTrue(changeDetails.get('timestamp') > timestamp)
+        self.assertEqual(changeDetails.get('change'), 'move')
+        self.assertEqual(changeDetails.get('pathname'), "/%s+/test%s/Contact2.txt" % (self.test_project_name, self.token))
+        self.assertEqual(changeDetails.get('target'), "/%s+/test%s/x/y/z/Contact.txt" % (self.test_project_name, self.token))
+        self.assertEqual(changeDetails.get('mode'), 'cli')
+        timestamp = changeDetails.get('timestamp')
+        time.sleep(1)
 
         print("Download file")
         cmd = "%s download %s /test%s/x/y/z/Contact.txt %s/a/b/c/Contact.txt" % (self.cli_cmd, self.args, self.token, self.tempdir)
@@ -1207,6 +1330,21 @@ class TestIdaCli(unittest.TestCase):
             path = Path("%s/test%s/x/y/z/Contact.txt" % (self.staging, self.token))
             self.assertFalse(path.exists(), output)
 
+        print("Query IDA for last data change details and verify change matches last action")
+        response = requests.get("%s/dataChanges/%s/last" % (self.config["IDA_API_ROOT_URL"], self.test_project_name), auth=self.test_user_auth)
+        self.assertEqual(response.status_code, 200)
+        changeDetails = response.json()
+        self.assertIsNotNone(changeDetails)
+        self.assertEqual(changeDetails.get('project'), self.test_project_name)
+        self.assertEqual(changeDetails.get('user'), self.test_user_name)
+        self.assertTrue(changeDetails.get('timestamp') > timestamp)
+        self.assertEqual(changeDetails.get('change'), 'delete')
+        self.assertEqual(changeDetails.get('pathname'), "/%s+/test%s/x/y/z/Contact.txt" % (self.test_project_name, self.token))
+        self.assertIsNone(changeDetails.get('target'))
+        self.assertEqual(changeDetails.get('mode'), 'cli')
+        timestamp = changeDetails.get('timestamp')
+        time.sleep(1)
+
         print("--- Folder Operations")
 
         print("Upload new folder with dry-run parameter and verify no actual upload occurred")
@@ -1245,6 +1383,21 @@ class TestIdaCli(unittest.TestCase):
             path = Path("%s/test%s/2017-08/Experiment_1/baseline/test05.dat" % (self.staging, self.token))
             self.assertTrue(path.is_file(), output)
             self.assertEquals(3728, path.stat().st_size, output)
+
+        print("Query IDA for last data change details and verify change matches last action")
+        response = requests.get("%s/dataChanges/%s/last" % (self.config["IDA_API_ROOT_URL"], self.test_project_name), auth=self.test_user_auth)
+        self.assertEqual(response.status_code, 200)
+        changeDetails = response.json()
+        self.assertIsNotNone(changeDetails)
+        self.assertEqual(changeDetails.get('project'), self.test_project_name)
+        self.assertEqual(changeDetails.get('user'), self.test_user_name)
+        self.assertTrue(changeDetails.get('timestamp') > timestamp)
+        self.assertEqual(changeDetails.get('change'), 'add')
+        self.assertTrue(changeDetails.get('pathname').startswith("/%s+/test%s/2017-08/Experiment_1" % (self.test_project_name, self.token)))
+        self.assertIsNone(changeDetails.get('target'))
+        self.assertEqual(changeDetails.get('mode'), 'cli')
+        timestamp = changeDetails.get('timestamp')
+        time.sleep(1)
 
         print("Upload additional files to existing folder")
         cmd = "%s upload %s /test%s/2017-08/Experiment_1/baseline2 %s/2017-08/Experiment_2/baseline" % (self.cli_cmd, self.args, self.token, self.testdata)
@@ -1392,6 +1545,21 @@ class TestIdaCli(unittest.TestCase):
             self.assertTrue(path.is_file(), output)
             self.assertEquals(0, path.stat().st_size, output)
 
+        print("Query IDA for last data change details and verify change matches last action")
+        response = requests.get("%s/dataChanges/%s/last" % (self.config["IDA_API_ROOT_URL"], self.test_project_name), auth=self.test_user_auth)
+        self.assertEqual(response.status_code, 200)
+        changeDetails = response.json()
+        self.assertIsNotNone(changeDetails)
+        self.assertEqual(changeDetails.get('project'), self.test_project_name)
+        self.assertEqual(changeDetails.get('user'), self.test_user_name)
+        self.assertTrue(changeDetails.get('timestamp') > timestamp)
+        self.assertEqual(changeDetails.get('change'), 'copy')
+        self.assertEqual(changeDetails.get('pathname'), "/%s+/test%s/2017-10/Experiment_3/baseline" % (self.test_project_name, self.token))
+        self.assertEqual(changeDetails.get('target'), "/%s+/test%s/2017-11/Experiment_8/baseline" % (self.test_project_name, self.token))
+        self.assertEqual(changeDetails.get('mode'), 'cli')
+        timestamp = changeDetails.get('timestamp')
+        time.sleep(1)
+
         print("(freeze folder)")
         data = {"project": self.test_project_name, "pathname": "/test%s/2017-11/Experiment_8" % (self.token)}
         response = requests.post("%s/freeze" % self.ida_api, json=data, auth=self.test_user_auth, verify=False)
@@ -1424,6 +1592,21 @@ class TestIdaCli(unittest.TestCase):
             self.assertTrue(path.is_file(), output)
             self.assertEquals(0, path.stat().st_size, output)
 
+        print("Query IDA for last data change details and verify change matches last action")
+        response = requests.get("%s/dataChanges/%s/last" % (self.config["IDA_API_ROOT_URL"], self.test_project_name), auth=self.test_user_auth)
+        self.assertEqual(response.status_code, 200)
+        changeDetails = response.json()
+        self.assertIsNotNone(changeDetails)
+        self.assertEqual(changeDetails.get('project'), self.test_project_name)
+        self.assertEqual(changeDetails.get('user'), self.test_user_name)
+        self.assertTrue(changeDetails.get('timestamp') > timestamp)
+        self.assertEqual(changeDetails.get('change'), 'copy')
+        self.assertEqual(changeDetails.get('pathname'), "/%s/test%s/2017-11/Experiment_8/baseline" % (self.test_project_name, self.token))
+        self.assertEqual(changeDetails.get('target'), "/%s+/test%s/2017-11/Experiment_8/baseline" % (self.test_project_name, self.token))
+        self.assertEqual(changeDetails.get('mode'), 'cli')
+        timestamp = changeDetails.get('timestamp')
+        time.sleep(1)
+
         print("Rename folder within staging with dry-run parameter and verify no actual renaming occurred")
         cmd = "%s move %s -D /test%s/2017-10/Experiment_3/baseline /test%s/2017-10/Experiment_3/baseline_old" % (self.cli_cmd, self.args, self.token, self.token)
         try:
@@ -1449,6 +1632,21 @@ class TestIdaCli(unittest.TestCase):
             self.assertFalse(path.exists(), output)
             path = Path("%s/test%s/2017-10/Experiment_3/baseline_old" % (self.staging, self.token))
             self.assertTrue(path.is_dir(), output)
+
+        print("Query IDA for last data change details and verify change matches last action")
+        response = requests.get("%s/dataChanges/%s/last" % (self.config["IDA_API_ROOT_URL"], self.test_project_name), auth=self.test_user_auth)
+        self.assertEqual(response.status_code, 200)
+        changeDetails = response.json()
+        self.assertIsNotNone(changeDetails)
+        self.assertEqual(changeDetails.get('project'), self.test_project_name)
+        self.assertEqual(changeDetails.get('user'), self.test_user_name)
+        self.assertTrue(changeDetails.get('timestamp') > timestamp)
+        self.assertEqual(changeDetails.get('change'), 'rename')
+        self.assertEqual(changeDetails.get('pathname'), "/%s+/test%s/2017-10/Experiment_3/baseline" % (self.test_project_name, self.token))
+        self.assertEqual(changeDetails.get('target'), "/%s+/test%s/2017-10/Experiment_3/baseline_old" % (self.test_project_name, self.token))
+        self.assertEqual(changeDetails.get('mode'), 'cli')
+        timestamp = changeDetails.get('timestamp')
+        time.sleep(1)
 
         print("Move folder within staging with dry-run parameter and verify no actual move occurred")
         cmd = "%s move %s -D /test%s/2017-10/Experiment_3/baseline_old /test%s/2017-11/Experiment_9/baseline_x" % (self.cli_cmd, self.args, self.token, self.token)
@@ -1478,6 +1676,21 @@ class TestIdaCli(unittest.TestCase):
             path = Path("%s/test%s/2017-11/Experiment_9/baseline_x/zero_size_file" % (self.staging, self.token))
             self.assertTrue(path.is_file(), output)
             self.assertEquals(0, path.stat().st_size, output)
+
+        print("Query IDA for last data change details and verify change matches last action")
+        response = requests.get("%s/dataChanges/%s/last" % (self.config["IDA_API_ROOT_URL"], self.test_project_name), auth=self.test_user_auth)
+        self.assertEqual(response.status_code, 200)
+        changeDetails = response.json()
+        self.assertIsNotNone(changeDetails)
+        self.assertEqual(changeDetails.get('project'), self.test_project_name)
+        self.assertEqual(changeDetails.get('user'), self.test_user_name)
+        self.assertTrue(changeDetails.get('timestamp') > timestamp)
+        self.assertEqual(changeDetails.get('change'), 'move')
+        self.assertEqual(changeDetails.get('pathname'), "/%s+/test%s/2017-10/Experiment_3/baseline_old" % (self.test_project_name, self.token))
+        self.assertEqual(changeDetails.get('target'), "/%s+/test%s/2017-11/Experiment_9/baseline_x" % (self.test_project_name, self.token))
+        self.assertEqual(changeDetails.get('mode'), 'cli')
+        timestamp = changeDetails.get('timestamp')
+        time.sleep(1)
 
         print("Download folder as package")
         cmd = "%s download %s /test%s/2017-10/Experiment_5 %s/2017-10_Experiment_5.zip" % (self.cli_cmd, self.args, self.token, self.tempdir)
@@ -1534,6 +1747,21 @@ class TestIdaCli(unittest.TestCase):
         if self.run_localized_tests:
             path = Path("%s/test%s/2017-10/Experiment_4" % (self.staging, self.token))
             self.assertFalse(path.exists(), output)
+
+        print("Query IDA for last data change details and verify change matches last action")
+        response = requests.get("%s/dataChanges/%s/last" % (self.config["IDA_API_ROOT_URL"], self.test_project_name), auth=self.test_user_auth)
+        self.assertEqual(response.status_code, 200)
+        changeDetails = response.json()
+        self.assertIsNotNone(changeDetails)
+        self.assertEqual(changeDetails.get('project'), self.test_project_name)
+        self.assertEqual(changeDetails.get('user'), self.test_user_name)
+        self.assertTrue(changeDetails.get('timestamp') > timestamp)
+        self.assertEqual(changeDetails.get('change'), 'delete')
+        self.assertEqual(changeDetails.get('pathname'), "/%s+/test%s/2017-10/Experiment_4" % (self.test_project_name, self.token))
+        self.assertIsNone(changeDetails.get('target'))
+        self.assertEqual(changeDetails.get('mode'), 'cli')
+        timestamp = changeDetails.get('timestamp')
+        time.sleep(1)
 
         print("--- Info Operations")
 
@@ -1599,7 +1827,7 @@ class TestIdaCli(unittest.TestCase):
         self.assertIn("\"modified\": ", output)
 
         print("Verify no verbose or debug output to stdout from info action")
-        cmd = "%s info %s -V /test%s/2017-12/Experiment_1/baseline/test01.dat 2>/dev/null" % (self.cli_cmd, self.args, self.token)
+        cmd = "%s info %s /test%s/2017-12/Experiment_1/baseline/test01.dat 2>/dev/null" % (self.cli_cmd, self.args, self.token)
         try:
             output = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT).decode(sys.stdout.encoding)
         except subprocess.CalledProcessError as error:
@@ -1730,7 +1958,7 @@ class TestIdaCli(unittest.TestCase):
             # related to lock and scope collision, without having to simulate any initiating
             # actions and test actual pathname collisions. This is because the behavioral tests
             # for the scope collision functionality already cover actual collision use cases,
-            # and all that must be checked here is that the CLI script queries the checkScope API
+            # and all that must be checked here is that the CLI script queries the scopeOK API
             # endpoint before each relevant operation and exits with an error if a 409 response
             # is received. It doesn't matter whether the 409 response is due to the service being
             # locked or an actual pathname collision.
