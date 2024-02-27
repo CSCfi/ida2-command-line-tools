@@ -22,7 +22,7 @@
 # @link https://research.csc.fi/
 #--------------------------------------------------------------------------------
 
-RELEASE_CHECKSUM="274e850a770980e3f93386a95b61af0d23a893fa0dd918a98140376f845793df"
+RELEASE_CHECKSUM="3b5c4693f92ad744675c591165050f9506b19da4412c41715e76e1c7d86a43d8"
 
 ALLOW_MODIFIED_SCRIPT="false" # Set to "true" to allow execution of a modified script
 
@@ -1644,7 +1644,7 @@ fi
 if [ "$IDA_NETRC" != "true" ]; then
 
     if [ -z "$IDA_USERNAME" ]; then
-        echo -n "username: "
+        echo -n "CSC username: "
         read IDA_USERNAME
         if [ "$IDA_USERNAME" = "" ]; then
             echo "Error: Invalid username" >&2
@@ -1654,7 +1654,7 @@ if [ "$IDA_NETRC" != "true" ]; then
     fi
 
     if [ -z "$IDA_PASSWORD" ]; then
-        echo -n "password: "
+        echo -n "IDA application password: "
         stty -echo
         trap 'stty echo' EXIT
         read IDA_PASSWORD

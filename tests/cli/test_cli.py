@@ -270,9 +270,6 @@ class TestIdaCli(unittest.TestCase):
 
     def test_ida_cli(self):
 
-        # TODO add checks that changes are recorded properly with mode 'cli' after every action by 
-        # retrieving the last change and verifying response
-
         if not self.run_trusted_tests:
             print("*** WARNING: Trusted account credentials not defined or ignored. A subset of tests will be executed.")
 
@@ -831,8 +828,8 @@ class TestIdaCli(unittest.TestCase):
             self.assertTrue(path.is_file(), output)
             self.assertEqual(2263, path.stat().st_size, output)
 
-        print("Query IDA for last data change details and verify change matches last action")
-        response = requests.get("%s/dataChanges/%s/last" % (self.config["IDA_API_ROOT_URL"], self.test_project_name), auth=self.test_user_auth)
+        print("Query IDA for last add data change details and verify change matches last action")
+        response = requests.get("%s/dataChanges/%s/last?change=add" % (self.config["IDA_API_ROOT_URL"], self.test_project_name), auth=self.test_user_auth)
         self.assertEqual(response.status_code, 200)
         changeDetails = response.json()
         self.assertIsNotNone(changeDetails)
@@ -878,8 +875,8 @@ class TestIdaCli(unittest.TestCase):
             path = Path("%s/test%s/Contact.txt" % (self.staging, self.token))
             self.assertTrue(path.is_file(), output)
 
-        print("Query IDA for last data change details and verify change matches last action")
-        response = requests.get("%s/dataChanges/%s/last" % (self.config["IDA_API_ROOT_URL"], self.test_project_name), auth=self.test_user_auth)
+        print("Query IDA for last add data change details and verify change matches last action")
+        response = requests.get("%s/dataChanges/%s/last?change=add" % (self.config["IDA_API_ROOT_URL"], self.test_project_name), auth=self.test_user_auth)
         self.assertEqual(response.status_code, 200)
         changeDetails = response.json()
         self.assertIsNotNone(changeDetails)
@@ -989,8 +986,8 @@ class TestIdaCli(unittest.TestCase):
             self.assertTrue(path.is_file(), output)
             self.assertEquals(0, path.stat().st_size, output)
 
-        print("Query IDA for last data change details and verify change matches last action")
-        response = requests.get("%s/dataChanges/%s/last" % (self.config["IDA_API_ROOT_URL"], self.test_project_name), auth=self.test_user_auth)
+        print("Query IDA for last add data change details and verify change matches last action")
+        response = requests.get("%s/dataChanges/%s/last?change=add" % (self.config["IDA_API_ROOT_URL"], self.test_project_name), auth=self.test_user_auth)
         self.assertEqual(response.status_code, 200)
         changeDetails = response.json()
         self.assertIsNotNone(changeDetails)
@@ -1028,8 +1025,8 @@ class TestIdaCli(unittest.TestCase):
             path = Path("%s/test%s/a/b/c/Contact.txt" % (self.staging, self.token))
             self.assertTrue(path.is_file(), output)
 
-        print("Query IDA for last data change details and verify change matches last action")
-        response = requests.get("%s/dataChanges/%s/last" % (self.config["IDA_API_ROOT_URL"], self.test_project_name), auth=self.test_user_auth)
+        print("Query IDA for last copy data change details and verify change matches last action")
+        response = requests.get("%s/dataChanges/%s/last?change=copy" % (self.config["IDA_API_ROOT_URL"], self.test_project_name), auth=self.test_user_auth)
         self.assertEqual(response.status_code, 200)
         changeDetails = response.json()
         self.assertIsNotNone(changeDetails)
@@ -1082,8 +1079,8 @@ class TestIdaCli(unittest.TestCase):
             path = Path("%s/test%s/a/b/c/Contact.txt" % (self.staging, self.token))
             self.assertTrue(path.is_file(), output)
 
-        print("Query IDA for last data change details and verify change matches last action")
-        response = requests.get("%s/dataChanges/%s/last" % (self.config["IDA_API_ROOT_URL"], self.test_project_name), auth=self.test_user_auth)
+        print("Query IDA for last copy data change details and verify change matches last action")
+        response = requests.get("%s/dataChanges/%s/last?change=copy" % (self.config["IDA_API_ROOT_URL"], self.test_project_name), auth=self.test_user_auth)
         self.assertEqual(response.status_code, 200)
         changeDetails = response.json()
         self.assertIsNotNone(changeDetails)
@@ -1112,8 +1109,8 @@ class TestIdaCli(unittest.TestCase):
             self.assertTrue(path.is_file(), output)
             self.assertEquals(0, path.stat().st_size, output)
 
-        print("Query IDA for last data change details and verify change matches last action")
-        response = requests.get("%s/dataChanges/%s/last" % (self.config["IDA_API_ROOT_URL"], self.test_project_name), auth=self.test_user_auth)
+        print("Query IDA for last copy data change details and verify change matches last action")
+        response = requests.get("%s/dataChanges/%s/last?change=copy" % (self.config["IDA_API_ROOT_URL"], self.test_project_name), auth=self.test_user_auth)
         self.assertEqual(response.status_code, 200)
         changeDetails = response.json()
         self.assertIsNotNone(changeDetails)
@@ -1153,8 +1150,8 @@ class TestIdaCli(unittest.TestCase):
             path = Path("%s/test%s/Contact2.txt" % (self.staging, self.token))
             self.assertTrue(path.is_file(), output)
 
-        print("Query IDA for last data change details and verify change matches last action")
-        response = requests.get("%s/dataChanges/%s/last" % (self.config["IDA_API_ROOT_URL"], self.test_project_name), auth=self.test_user_auth)
+        print("Query IDA for last rename data change details and verify change matches last action")
+        response = requests.get("%s/dataChanges/%s/last?change=rename" % (self.config["IDA_API_ROOT_URL"], self.test_project_name), auth=self.test_user_auth)
         self.assertEqual(response.status_code, 200)
         changeDetails = response.json()
         self.assertIsNotNone(changeDetails)
@@ -1194,8 +1191,8 @@ class TestIdaCli(unittest.TestCase):
             path = Path("%s/test%s/x/y/z/Contact.txt" % (self.staging, self.token))
             self.assertTrue(path.is_file(), output)
 
-        print("Query IDA for last data change details and verify change matches last action")
-        response = requests.get("%s/dataChanges/%s/last" % (self.config["IDA_API_ROOT_URL"], self.test_project_name), auth=self.test_user_auth)
+        print("Query IDA for last move data change details and verify change matches last action")
+        response = requests.get("%s/dataChanges/%s/last?change=move" % (self.config["IDA_API_ROOT_URL"], self.test_project_name), auth=self.test_user_auth)
         self.assertEqual(response.status_code, 200)
         changeDetails = response.json()
         self.assertIsNotNone(changeDetails)
@@ -1330,8 +1327,8 @@ class TestIdaCli(unittest.TestCase):
             path = Path("%s/test%s/x/y/z/Contact.txt" % (self.staging, self.token))
             self.assertFalse(path.exists(), output)
 
-        print("Query IDA for last data change details and verify change matches last action")
-        response = requests.get("%s/dataChanges/%s/last" % (self.config["IDA_API_ROOT_URL"], self.test_project_name), auth=self.test_user_auth)
+        print("Query IDA for last delete data change details and verify change matches last action")
+        response = requests.get("%s/dataChanges/%s/last?change=delete" % (self.config["IDA_API_ROOT_URL"], self.test_project_name), auth=self.test_user_auth)
         self.assertEqual(response.status_code, 200)
         changeDetails = response.json()
         self.assertIsNotNone(changeDetails)
@@ -1384,8 +1381,8 @@ class TestIdaCli(unittest.TestCase):
             self.assertTrue(path.is_file(), output)
             self.assertEquals(3728, path.stat().st_size, output)
 
-        print("Query IDA for last data change details and verify change matches last action")
-        response = requests.get("%s/dataChanges/%s/last" % (self.config["IDA_API_ROOT_URL"], self.test_project_name), auth=self.test_user_auth)
+        print("Query IDA for last add data change details and verify change matches last action")
+        response = requests.get("%s/dataChanges/%s/last?change=add" % (self.config["IDA_API_ROOT_URL"], self.test_project_name), auth=self.test_user_auth)
         self.assertEqual(response.status_code, 200)
         changeDetails = response.json()
         self.assertIsNotNone(changeDetails)
@@ -1545,8 +1542,8 @@ class TestIdaCli(unittest.TestCase):
             self.assertTrue(path.is_file(), output)
             self.assertEquals(0, path.stat().st_size, output)
 
-        print("Query IDA for last data change details and verify change matches last action")
-        response = requests.get("%s/dataChanges/%s/last" % (self.config["IDA_API_ROOT_URL"], self.test_project_name), auth=self.test_user_auth)
+        print("Query IDA for last copy data change details and verify change matches last action")
+        response = requests.get("%s/dataChanges/%s/last?change=copy" % (self.config["IDA_API_ROOT_URL"], self.test_project_name), auth=self.test_user_auth)
         self.assertEqual(response.status_code, 200)
         changeDetails = response.json()
         self.assertIsNotNone(changeDetails)
@@ -1592,8 +1589,8 @@ class TestIdaCli(unittest.TestCase):
             self.assertTrue(path.is_file(), output)
             self.assertEquals(0, path.stat().st_size, output)
 
-        print("Query IDA for last data change details and verify change matches last action")
-        response = requests.get("%s/dataChanges/%s/last" % (self.config["IDA_API_ROOT_URL"], self.test_project_name), auth=self.test_user_auth)
+        print("Query IDA for last copy data change details and verify change matches last action")
+        response = requests.get("%s/dataChanges/%s/last?change=copy" % (self.config["IDA_API_ROOT_URL"], self.test_project_name), auth=self.test_user_auth)
         self.assertEqual(response.status_code, 200)
         changeDetails = response.json()
         self.assertIsNotNone(changeDetails)
@@ -1633,8 +1630,8 @@ class TestIdaCli(unittest.TestCase):
             path = Path("%s/test%s/2017-10/Experiment_3/baseline_old" % (self.staging, self.token))
             self.assertTrue(path.is_dir(), output)
 
-        print("Query IDA for last data change details and verify change matches last action")
-        response = requests.get("%s/dataChanges/%s/last" % (self.config["IDA_API_ROOT_URL"], self.test_project_name), auth=self.test_user_auth)
+        print("Query IDA for last rename data change details and verify change matches last action")
+        response = requests.get("%s/dataChanges/%s/last?change=rename" % (self.config["IDA_API_ROOT_URL"], self.test_project_name), auth=self.test_user_auth)
         self.assertEqual(response.status_code, 200)
         changeDetails = response.json()
         self.assertIsNotNone(changeDetails)
@@ -1677,8 +1674,8 @@ class TestIdaCli(unittest.TestCase):
             self.assertTrue(path.is_file(), output)
             self.assertEquals(0, path.stat().st_size, output)
 
-        print("Query IDA for last data change details and verify change matches last action")
-        response = requests.get("%s/dataChanges/%s/last" % (self.config["IDA_API_ROOT_URL"], self.test_project_name), auth=self.test_user_auth)
+        print("Query IDA for last move data change details and verify change matches last action")
+        response = requests.get("%s/dataChanges/%s/last?change=move" % (self.config["IDA_API_ROOT_URL"], self.test_project_name), auth=self.test_user_auth)
         self.assertEqual(response.status_code, 200)
         changeDetails = response.json()
         self.assertIsNotNone(changeDetails)
@@ -1748,8 +1745,8 @@ class TestIdaCli(unittest.TestCase):
             path = Path("%s/test%s/2017-10/Experiment_4" % (self.staging, self.token))
             self.assertFalse(path.exists(), output)
 
-        print("Query IDA for last data change details and verify change matches last action")
-        response = requests.get("%s/dataChanges/%s/last" % (self.config["IDA_API_ROOT_URL"], self.test_project_name), auth=self.test_user_auth)
+        print("Query IDA for last delete data change details and verify change matches last action")
+        response = requests.get("%s/dataChanges/%s/last?change=delete" % (self.config["IDA_API_ROOT_URL"], self.test_project_name), auth=self.test_user_auth)
         self.assertEqual(response.status_code, 200)
         changeDetails = response.json()
         self.assertIsNotNone(changeDetails)

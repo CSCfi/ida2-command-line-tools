@@ -102,7 +102,7 @@ echo "Flushing all action and file records from IDA service database..."
 for PROJECT in $PROJECTS; do
     STEP="   Flushing $PROJECT"
     printf "%${PADDING}s" "$STEP"
-    OUT=`$CURL_POST $NC_ADMIN_USER:$NC_ADMIN_PASS "$URL_BASE_IDA/api/flush?project=$PROJECT" 2>&1`
+    OUT=`$CURL_POST $NC_ADMIN_USER:$NC_ADMIN_PASS "$IDA_API/flush?project=$PROJECT" 2>&1`
     if [ "$?" -ne 0 ]; then
         OUT=`echo "$OUT" | head -1`
         failure "$OUT (ignored)"
@@ -118,7 +118,7 @@ if [ "$METAX_AVAILABLE" = "1" ]; then
     for PROJECT in $PROJECTS; do
         STEP="   Flushing $PROJECT"
         printf "%${PADDING}s" "$STEP"
-        OUT=`$CURL_POST $METAX_API_USER:$METAX_API_PASS "$METAX_API_RPC_URL/files/flush_project?project_identifier=$PROJECT" 2>&1`
+        OUT=`$CURL_POST $METAX_USER:$METAX_PASS "$METAX_RPC/files/flush_project?project_identifier=$PROJECT" 2>&1`
         if [ "$?" -ne 0 ]; then
             OUT=`echo "$OUT" | head -1`
             NOT_FOUND=`echo "$OUT" | grep '404 Not Found'`
