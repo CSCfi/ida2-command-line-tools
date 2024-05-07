@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 #--------------------------------------------------------------------------------
 # This file is part of the IDA research data storage service
 #
@@ -22,7 +22,7 @@
 # @link https://research.csc.fi/
 #--------------------------------------------------------------------------------
 
-RELEASE_CHECKSUM="3b5c4693f92ad744675c591165050f9506b19da4412c41715e76e1c7d86a43d8"
+RELEASE_CHECKSUM="bf180176b040314052b2e04f364c992830f9275980c5bd7d2095db96dc5fc081"
 
 ALLOW_MODIFIED_SCRIPT="false" # Set to "true" to allow execution of a modified script
 
@@ -681,17 +681,36 @@ function execute_ida_upload_file {
 
         MODIFIED=`stat -c "%Y" "$IDA_UPLOAD_FILE_LOCAL_PATHNAME"`
 
-        if [ "$IDA_DEBUG" = "true" ]; then
-            echo "curl $IDA_CURL_OPS -X PUT -H '$IDA_MODE_HEADER' -o /dev/null -w '%{http_code}' -H 'X-OC-Mtime: $MODIFIED' -H 'OC-Checksum:sha256:$IDA_UPLOAD_FILE_LOCAL_CHECKSUM' -T \"$IDA_UPLOAD_FILE_LOCAL_PATHNAME\" \"${IDA_HOST}${IDA_WEBDAV}/${ENCODED_IDA_STAGING_FOLDER}/${ENCODED_TARGET_PATHNAME}\" <<< \"$IDA_DEBUG_CREDENTIALS\"" >&2
-        fi
+        if [ "$NO_UPLOAD_CHECKSUM" = "true" ]; then # Used by automated tests
 
-        if [ "$IDA_EXECUTE_ACTION" = "true" ]; then
+            if [ "$IDA_DEBUG" = "true" ]; then
+                echo "curl $IDA_CURL_OPS -X PUT -H '$IDA_MODE_HEADER' -o /dev/null -w '%{http_code}' -H 'X-OC-Mtime: $MODIFIED' -T \"$IDA_UPLOAD_FILE_LOCAL_PATHNAME\" \"${IDA_HOST}${IDA_WEBDAV}/${ENCODED_IDA_STAGING_FOLDER}/${ENCODED_TARGET_PATHNAME}\" <<< \"$IDA_DEBUG_CREDENTIALS\"" >&2
+            fi
 
-            OUTPUT=$(curl $IDA_CURL_OPS -X PUT -H "$IDA_MODE_HEADER" -o /dev/null -w '%{http_code}' -H "X-OC-Mtime: $MODIFIED" -H "OC-Checksum:SHA256:$IDA_UPLOAD_FILE_LOCAL_CHECKSUM" -T "$IDA_UPLOAD_FILE_LOCAL_PATHNAME" "${IDA_HOST}${IDA_WEBDAV}/${ENCODED_IDA_STAGING_FOLDER}/${ENCODED_TARGET_PATHNAME}" <<< "$IDA_CREDENTIALS")
+            if [ "$IDA_EXECUTE_ACTION" = "true" ]; then
 
-            if [[ ${OUTPUT::1} != "2" ]]; then
-                echo "Error: PUT request failed for '/${ENCODED_IDA_STAGING_FOLDER}/${ENCODED_TARGET_PATHNAME}': ${OUTPUT}" >&2
-                exit 1
+                OUTPUT=$(curl $IDA_CURL_OPS -X PUT -H "$IDA_MODE_HEADER" -o /dev/null -w '%{http_code}' -H "X-OC-Mtime: $MODIFIED" -T "$IDA_UPLOAD_FILE_LOCAL_PATHNAME" "${IDA_HOST}${IDA_WEBDAV}/${ENCODED_IDA_STAGING_FOLDER}/${ENCODED_TARGET_PATHNAME}" <<< "$IDA_CREDENTIALS")
+
+                if [[ ${OUTPUT::1} != "2" ]]; then
+                    echo "Error: PUT request failed for '/${ENCODED_IDA_STAGING_FOLDER}/${ENCODED_TARGET_PATHNAME}': ${OUTPUT}" >&2
+                    exit 1
+                fi
+            fi
+
+        else
+
+            if [ "$IDA_DEBUG" = "true" ]; then
+                echo "curl $IDA_CURL_OPS -X PUT -H '$IDA_MODE_HEADER' -o /dev/null -w '%{http_code}' -H 'X-OC-Mtime: $MODIFIED' -H 'OC-Checksum:sha256:$IDA_UPLOAD_FILE_LOCAL_CHECKSUM' -T \"$IDA_UPLOAD_FILE_LOCAL_PATHNAME\" \"${IDA_HOST}${IDA_WEBDAV}/${ENCODED_IDA_STAGING_FOLDER}/${ENCODED_TARGET_PATHNAME}\" <<< \"$IDA_DEBUG_CREDENTIALS\"" >&2
+            fi
+
+            if [ "$IDA_EXECUTE_ACTION" = "true" ]; then
+
+                OUTPUT=$(curl $IDA_CURL_OPS -X PUT -H "$IDA_MODE_HEADER" -o /dev/null -w '%{http_code}' -H "X-OC-Mtime: $MODIFIED" -H "OC-Checksum:SHA256:$IDA_UPLOAD_FILE_LOCAL_CHECKSUM" -T "$IDA_UPLOAD_FILE_LOCAL_PATHNAME" "${IDA_HOST}${IDA_WEBDAV}/${ENCODED_IDA_STAGING_FOLDER}/${ENCODED_TARGET_PATHNAME}" <<< "$IDA_CREDENTIALS")
+
+                if [[ ${OUTPUT::1} != "2" ]]; then
+                    echo "Error: PUT request failed for '/${ENCODED_IDA_STAGING_FOLDER}/${ENCODED_TARGET_PATHNAME}': ${OUTPUT}" >&2
+                    exit 1
+                fi
             fi
         fi
     fi
@@ -781,10 +800,12 @@ function execute_ida_validate_file {
     fi
 
     SIZE=$(echo "$OUTPUT" | grep "<d:getcontentlength>" | head -1 | sed -e 's/^.*>//')
+    CHECKSUM=$(echo "$OUTPUT" | grep "<oc:checksum>" | head -1 | sed -e 's/^.*>//' | tr 'A-Z' 'a-z' | grep 'sha256:' | sed -e 's/^sha256://')
 
     if [ "$IDA_DEBUG" = "true" ]; then
         echo "PROPFIND: $OUTPUT" >&2
-        echo "SIZE:     \"$SIZE\"" >&2
+        echo "SIZE:     $SIZE" >&2
+        echo "CHECKSUM: $CHECKSUM" >&2
     fi
 
     if [ -z "$SIZE" ]; then
@@ -810,6 +831,30 @@ function execute_ida_validate_file {
 
         if [ "$SIZE" != "$LOCAL_SIZE" ]; then
             echo "INVALID: local file $IDA_VALIDATE_FILE_LOCAL_PATHNAME size $LOCAL_SIZE does not match IDA file size $SIZE at /$IDA_TARGET_FOLDER/$IDA_VALIDATE_FILE_TARGET_PATHNAME"
+            return 2
+        fi
+    fi
+
+    if [ -z "$CHECKSUM" ]; then
+
+        if [ "$IDA_VERBOSE" = "true" ]; then
+            echo "WARNING: no checksum reported for file in IDA at /$IDA_TARGET_FOLDER/$IDA_VALIDATE_FILE_TARGET_PATHNAME, validated based on size comparison only"
+        fi
+        
+    else
+
+        if [[ "$OSTYPE" = "darwin"* ]]; then
+            LOCAL_CHECKSUM=$(shasum -a 256 "$IDA_VALIDATE_FILE_LOCAL_PATHNAME" | awk '{ print $1 }' | tr '[A-Z]' '[a-z]')
+        else
+            LOCAL_CHECKSUM=$(sha256sum "$IDA_VALIDATE_FILE_LOCAL_PATHNAME" | awk '{ print $1 }' | tr '[A-Z]' '[a-z]')
+        fi
+
+        if [ "$IDA_DEBUG" = "true" ]; then
+            echo "LOCAL_CHECKSUM: $LOCAL_CHECKSUM" >&2
+        fi
+
+        if [ "$CHECKSUM" != "$LOCAL_CHECKSUM" ]; then
+            echo "INVALID: local file $IDA_VALIDATE_FILE_LOCAL_PATHNAME checksum $LOCAL_CHECKSUM does not match IDA file checksum $CHECKSUM at /$IDA_TARGET_FOLDER/$IDA_VALIDATE_FILE_TARGET_PATHNAME"
             return 2
         fi
     fi
