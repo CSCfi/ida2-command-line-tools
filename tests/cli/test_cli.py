@@ -850,6 +850,7 @@ class TestIdaCli(unittest.TestCase):
         except subprocess.CalledProcessError as error:
             self.fail(error.output.decode(sys.stdout.encoding))
         self.assertIn("FILE_OK: local file %s/Contact.txt matches file in IDA at /%s+/test%s/Contact.txt" % (self.testdata, self.test_project_name, self.token), output)
+        self.assertNotIn("WARNING: no checksum reported for file in IDA", output)
 
         print("Attempt to upload existing file, which will be skipped")
         cmd = "%s upload %s /test%s/Contact.txt %s/Contact.txt" % (self.cli_cmd, self.args, self.token, self.testdata)
@@ -950,6 +951,23 @@ class TestIdaCli(unittest.TestCase):
         except subprocess.CalledProcessError as error:
             self.fail(error.output.decode(sys.stdout.encoding))
         self.assertIn("FILE_OK: local file %s/Contact.txt matches file in IDA at /%s+/test%s/Contact.txt" % (self.testdata, self.test_project_name, self.token), output)
+
+        # TODO test validation of file which has no checksum in IDA to verify warning about size only comparison
+
+        print("Create variant of file in IDA with same size but modified so that checksum is different")
+        cmd = "cat %s/Contact.txt | tr 'a-z' 'A-Z' > /tmp/Contact.txt" % self.testdata
+        try:
+            output = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT).decode(sys.stdout.encoding)
+        except subprocess.CalledProcessError as error:
+            self.fail(error.output.decode(sys.stdout.encoding))
+
+        print("Validate modified local file against same named file in IDA with different checksum, which will be reported as invalid")
+        cmd = "%s validate %s /test%s/Contact.txt /tmp/Contact.txt" % (self.cli_cmd, self.args, self.token)
+        try:
+            output = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT).decode(sys.stdout.encoding)
+        except subprocess.CalledProcessError as error:
+            self.fail(error.output.decode(sys.stdout.encoding))
+        self.assertIn("INVALID: local file /tmp/Contact.txt checksum 04992ff90cd43306900b24abb75da8c40fb583541f4404d94580ac90fc5f9ebc does not match IDA file checksum 8950fc9b4292a82cfd1b5e6bbaec578ed00ac9a9c27bf891130f198fef2f0168 at /%s+/test%s/Contact.txt" % (self.test_project_name, self.token), output)
 
         print("Upload file without initial slash in target pathname")
         cmd = "%s upload %s test%s/License.txt %s/License.txt" % (self.cli_cmd, self.args, self.token, self.testdata)
