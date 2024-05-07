@@ -67,7 +67,8 @@ class TestIdaCli(unittest.TestCase):
         self.tempdir = "%s/tests/cli/tmp" % (self.cli_root)
         self.ignore_file = "-i %s/tests/cli/ida-ignore" % (self.cli_root)
         self.config_file = "%s/ida-config" % self.tempdir
-        self.args = "-v -c %s" % self.config_file
+        self.info_args = "-c %s" % self.config_file
+        self.args = "-V %s" % self.info_args
    
         self.ida_host = self.config["IDA_HOST"]
         self.ida_api = self.config["IDA_API_ROOT_URL"]
@@ -329,7 +330,7 @@ class TestIdaCli(unittest.TestCase):
         self.assertTrue(failed, output)
 
         print("Attempt to use -D parameter with info action")
-        cmd = "%s info %s -D /file" % (self.cli_cmd, self.args)
+        cmd = "%s info %s -D /file" % (self.cli_cmd, self.info_args)
         failed = False
         try:
             output = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT).decode(sys.stdout.encoding)
@@ -406,7 +407,7 @@ class TestIdaCli(unittest.TestCase):
         self.assertTrue(failed, output)
 
         print("Attempt to use -F parameter with info action")
-        cmd = "%s info %s -F /file" % (self.cli_cmd, self.args)
+        cmd = "%s info %s -F /file" % (self.cli_cmd, self.info_args)
         failed = False
         try:
             output = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT).decode(sys.stdout.encoding)
@@ -483,7 +484,7 @@ class TestIdaCli(unittest.TestCase):
         self.assertTrue(failed, output)
 
         print("Attempt to use -i parameter with info action")
-        cmd = "%s info %s -i ./ignore /file" % (self.cli_cmd, self.args)
+        cmd = "%s info %s -i ./ignore /file" % (self.cli_cmd, self.info_args)
         failed = False
         try:
             output = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT).decode(sys.stdout.encoding)
@@ -626,7 +627,7 @@ class TestIdaCli(unittest.TestCase):
         self.assertTrue(failed, output)
 
         print("Attempt to use project name with invalid characters")
-        cmd = "%s info %s -p bad@project:name+ /" % (self.cli_cmd, self.args)
+        cmd = "%s info %s -p bad@project:name+ /" % (self.cli_cmd, self.info_args)
         failed = False
         try:
             output = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT).decode(sys.stdout.encoding)
@@ -1019,7 +1020,7 @@ class TestIdaCli(unittest.TestCase):
         self.assertIn("Target uploaded successfully", output)
         self.assertIn("Uploading file %s/Contact.txt to /%s+/test%s/nc/Contact.txt" % (self.testdata, self.test_project_name, self.token), output)
         if self.run_localized_tests:
-            path = Path("%s/test%s/f/Contact.txt" % (self.staging, self.token))
+            path = Path("%s/test%s/nc/Contact.txt" % (self.staging, self.token))
             self.assertTrue(path.is_file(), output)
             self.assertEqual(2263, path.stat().st_size, output)
 
@@ -1873,7 +1874,7 @@ class TestIdaCli(unittest.TestCase):
             self.assertEquals(0, path.stat().st_size, output)
 
         print("Retrieve file info from staging area as plain text")
-        cmd = "%s info %s /test%s/2017-12/Experiment_1/baseline/test01.dat" % (self.cli_cmd, self.args, self.token)
+        cmd = "%s info %s /test%s/2017-12/Experiment_1/baseline/test01.dat" % (self.cli_cmd, self.info_args, self.token)
         try:
             output = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT).decode(sys.stdout.encoding)
         except subprocess.CalledProcessError as error:
@@ -1889,7 +1890,7 @@ class TestIdaCli(unittest.TestCase):
         self.assertIn("modified:   ", output)
 
         print("Retrieve file info from staging area as JSON")
-        cmd = "%s info %s -j /test%s/2017-12/Experiment_1/baseline/test01.dat" % (self.cli_cmd, self.args, self.token)
+        cmd = "%s info %s -j /test%s/2017-12/Experiment_1/baseline/test01.dat" % (self.cli_cmd, self.info_args, self.token)
         try:
             output = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT).decode(sys.stdout.encoding)
         except subprocess.CalledProcessError as error:
@@ -1905,7 +1906,7 @@ class TestIdaCli(unittest.TestCase):
         self.assertIn("\"modified\": ", output)
 
         print("Verify no verbose or debug output to stdout from info action")
-        cmd = "%s info %s /test%s/2017-12/Experiment_1/baseline/test01.dat 2>/dev/null" % (self.cli_cmd, self.args, self.token)
+        cmd = "%s info %s /test%s/2017-12/Experiment_1/baseline/test01.dat 2>/dev/null" % (self.cli_cmd, self.info_args, self.token)
         try:
             output = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT).decode(sys.stdout.encoding)
         except subprocess.CalledProcessError as error:
@@ -1914,7 +1915,7 @@ class TestIdaCli(unittest.TestCase):
         self.assertNotIn("curl ", output)
 
         print("Retrieve folder info from staging area")
-        cmd = "%s info %s /test%s/2017-12/Experiment_1/baseline" % (self.cli_cmd, self.args, self.token)
+        cmd = "%s info %s /test%s/2017-12/Experiment_1/baseline" % (self.cli_cmd, self.info_args, self.token)
         try:
             output = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT).decode(sys.stdout.encoding)
         except subprocess.CalledProcessError as error:
@@ -1947,7 +1948,7 @@ class TestIdaCli(unittest.TestCase):
         self.checkForFailedActions(self.test_project_name, self.test_user_auth)
 
         print("Retrieve file info from frozen area")
-        cmd = "%s info %s -f /test%s/2017-12/Experiment_1/baseline/test01.dat" % (self.cli_cmd, self.args, self.token)
+        cmd = "%s info %s -f /test%s/2017-12/Experiment_1/baseline/test01.dat" % (self.cli_cmd, self.info_args, self.token)
         try:
             output = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT).decode(sys.stdout.encoding)
         except subprocess.CalledProcessError as error:
@@ -1965,7 +1966,7 @@ class TestIdaCli(unittest.TestCase):
         self.assertIn("frozen:     ", output)
 
         print("Retrieve folder info from frozen area")
-        cmd = "%s info %s -f /test%s/2017-12/Experiment_1/baseline" % (self.cli_cmd, self.args, self.token)
+        cmd = "%s info %s -f /test%s/2017-12/Experiment_1/baseline" % (self.cli_cmd, self.info_args, self.token)
         try:
             output = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT).decode(sys.stdout.encoding)
         except subprocess.CalledProcessError as error:
@@ -1985,7 +1986,7 @@ class TestIdaCli(unittest.TestCase):
         self.assertNotIn(":href>", output)
 
         print("Attempt to retrieve file info from staging area using invalid target pathname")
-        cmd = "%s info %s /test%s/no/such/file.txt" % (self.cli_cmd, self.args, self.token)
+        cmd = "%s info %s /test%s/no/such/file.txt" % (self.cli_cmd, self.info_args, self.token)
         failed = False
         try:
             output = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT).decode(sys.stdout.encoding)
@@ -1996,7 +1997,7 @@ class TestIdaCli(unittest.TestCase):
         self.assertTrue(failed, output)
 
         print("Attempt to retrieve folder info from staging area using invalid target pathname")
-        cmd = "%s info %s /test%s/no/such/folder" % (self.cli_cmd, self.args, self.token)
+        cmd = "%s info %s /test%s/no/such/folder" % (self.cli_cmd, self.info_args, self.token)
         failed = False
         try:
             output = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT).decode(sys.stdout.encoding)
@@ -2007,7 +2008,7 @@ class TestIdaCli(unittest.TestCase):
         self.assertTrue(failed, output)
 
         print("Attempt to retrieve file info from frozen area using invalid target pathname")
-        cmd = "%s info %s -f /test%s/no/such/file.txt" % (self.cli_cmd, self.args, self.token)
+        cmd = "%s info %s -f /test%s/no/such/file.txt" % (self.cli_cmd, self.info_args, self.token)
         failed = False
         try:
             output = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT).decode(sys.stdout.encoding)
@@ -2018,7 +2019,7 @@ class TestIdaCli(unittest.TestCase):
         self.assertTrue(failed, output)
 
         print("Attempt to retrieve folder info from frozen area using invalid target pathname")
-        cmd = "%s info %s -f /test%s/no/such/folder" % (self.cli_cmd, self.args, self.token)
+        cmd = "%s info %s -f /test%s/no/such/folder" % (self.cli_cmd, self.info_args, self.token)
         failed = False
         try:
             output = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT).decode(sys.stdout.encoding)

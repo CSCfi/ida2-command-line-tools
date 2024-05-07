@@ -22,9 +22,9 @@
 # @link https://research.csc.fi/
 #--------------------------------------------------------------------------------
 
-RELEASE_CHECKSUM="3b5c4693f92ad744675c591165050f9506b19da4412c41715e76e1c7d86a43d8"
+RELEASE_CHECKSUM="bf180176b040314052b2e04f364c992830f9275980c5bd7d2095db96dc5fc081"
 
-ALLOW_MODIFIED_SCRIPT="true" # Set to "true" to allow execution of a modified script
+ALLOW_MODIFIED_SCRIPT="false" # Set to "true" to allow execution of a modified script
 
 #--------------------------------------------------------------------------------
 # Only use the core os versions of commands
