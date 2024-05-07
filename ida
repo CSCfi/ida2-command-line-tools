@@ -785,8 +785,8 @@ function execute_ida_validate_file {
 
     if [ "$IDA_DEBUG" = "true" ]; then
         echo "PROPFIND: $OUTPUT" >&2
-        echo "SIZE:     \"$SIZE\"" >&2
-        echo "CHECKSUM: \"$CHECKSUM\"" >&2
+        echo "SIZE:     $SIZE" >&2
+        echo "CHECKSUM: $CHECKSUM" >&2
     fi
 
     if [ -z "$SIZE" ]; then
