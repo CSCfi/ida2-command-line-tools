@@ -22,9 +22,7 @@
 # @link https://research.csc.fi/
 #--------------------------------------------------------------------------------
 
-RELEASE_CHECKSUM="bf180176b040314052b2e04f364c992830f9275980c5bd7d2095db96dc5fc081"
-
-ALLOW_MODIFIED_SCRIPT="false" # Set to "true" to allow execution of a modified script
+RELEASE_CHECKSUM="a73dd41beb001062a2617b93a824c03b42e0e0a36d237878c23abadfc3a8af14"
 
 #--------------------------------------------------------------------------------
 # Only use the core os versions of commands
@@ -679,7 +677,11 @@ function execute_ida_upload_file {
             IDA_UPLOAD_FILE_LOCAL_CHECKSUM="(dry-run)"
         fi
 
-        MODIFIED=`stat -c "%Y" "$IDA_UPLOAD_FILE_LOCAL_PATHNAME"`
+        if [[ "$OSTYPE" = "darwin"* ]]; then
+            MODIFIED=`stat -f "%m" "$IDA_UPLOAD_FILE_LOCAL_PATHNAME"`
+        else
+            MODIFIED=`stat -c "%Y" "$IDA_UPLOAD_FILE_LOCAL_PATHNAME"`
+        fi
 
         if [ "$NO_UPLOAD_CHECKSUM" = "true" ]; then # Used by automated tests
 
@@ -1163,6 +1165,7 @@ function execute_ida_info {
             CHECKSUM=$(echo "$OUTPUT" | grep '"checksum"' | head -1 | sed -e 's/^.*"checksum"[ ]*:[ ]*"//' | sed -e 's/".*$//')
             MODIFIED=$(echo "$OUTPUT" | grep '"modified"' | head -1 | sed -e 's/^.*"modified"[ ]*:[ ]*"//' | sed -e 's/".*$//')
             FROZEN=$(echo "$OUTPUT" | grep '"frozen"' | head -1 | sed -e 's/^.*"frozen"[ ]*:[ ]*"//' | sed -e 's/".*$//')
+            UPLOADED=$(echo "$OUTPUT" | grep '"uploaded"' | head -1 | sed -e 's/^.*"uploaded"[ ]*:[ ]*"//' | sed -e 's/".*$//')
 
         else
 
@@ -1176,10 +1179,14 @@ function execute_ida_info {
             CHECKSUM=$(echo "$OUTPUT" | grep "<oc:checksum>" | head -1 | sed -e 's/^.*>//' | tr '[A-Z]' '[a-z]')
         fi
 
-        UPLOADED=$(echo "$OUTPUT" | grep "<nc:upload_time>" | head -1 | sed -e 's/^.*>//' | grep -v "0")
-        if [ "$UPLOADED" ]; then
-            UPLOADED=$(date -u -d "@$UPLOADED" +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null)
-        else
+        if [ -z "$UPLOADED" ]; then
+            UPLOADED=$(echo "$OUTPUT" | grep "<nc:upload_time>" | head -1 | sed -e 's/^.*>//' | grep -v "0")
+            if [ "$UPLOADED" ]; then
+                UPLOADED=$(date -u -d "@$UPLOADED" +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null)
+            fi
+        fi
+
+        if [ -z "$UPLOADED" ]; then
             UPLOADED="2018-11-01T00:00:00Z" # Initial ingestion of legacy iRods data into the current IDA service
             if [[ "$MODIFIED" > "$UPLOADED" ]]; then
                 UPLOADED="$MODIFIED"
@@ -1769,11 +1776,6 @@ if [ "$IDA_DEBUG" = "true" ]; then
 fi
 
 #--------------------------------------------------------------------------------
-# Ensure integrity of script
-
-check_script_integrity
-
-#--------------------------------------------------------------------------------
 # Process pathname arguments
 
 TARGET_PATHNAME="$IDA_PATHNAME_1"
@@ -1883,6 +1885,11 @@ if [[ ${OUTPUT::1} != "2" ]]; then
     echo "Error: Authentication failed" >&2
     exit 1
 fi
+
+#--------------------------------------------------------------------------------
+# Ensure integrity of script before proceeding further
+
+check_script_integrity
 
 #--------------------------------------------------------------------------------
 # Execute the requested action...

@@ -115,6 +115,9 @@ class TestIdaCli(unittest.TestCase):
         path = Path(self.cli_cmd)
         self.assertTrue(path.is_file())
 
+        # Prefix IDA CLI script pathname with environment variable allowing use of modified script
+        self.cli_cmd = "ALLOW_MODIFIED_SCRIPT=\"true\" %s" % self.cli_cmd
+
         # Prefix IDA CLI script pathname with user password from configuration if netrc not being used.
         # This prevents a user's actual password taken from a home configuration from being included in
         # any of the temporary configuration files generated as part of these tests
@@ -142,6 +145,11 @@ class TestIdaCli(unittest.TestCase):
 
         if self.config.get("NC_ADMIN_PASS", None) != None:
             self.run_trusted_tests = True
+
+        # Allow manual override of local and trusted tests
+        if os.getenv('ONLY_SAFE_TESTS') == 'true':
+            self.run_localized_tests = False
+            self.run_trusted_tests = False
 
         print("CONFIG SOURCE:           %s" % self.config_source)
         print("CONFIG PATH:             %s" % self.config["CONFIG_PATH"])
