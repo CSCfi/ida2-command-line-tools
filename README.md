@@ -21,6 +21,13 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
 @link https://research.csc.fi/
 -->
 
+### NOTE: This repository (`ida2-command-line-tools`) is deprecated
+
+* As of **2025-06-09**, this repository is no longer maintained.
+* The functionality of `ida2-command-line-tools` has been moved to the main **fairdata-ida-v3** project to consolidate development.
+* The new tool provides the same functionality and will receive all future updates.
+* Available here: https://github.com/CSCfi/fairdata-ida-v3/tree/master/cli
+
 # IDA Command Line Tools
 
 This repository provides a [bash](https://www.gnu.org/software/bash/) script `ida` for interacting with
